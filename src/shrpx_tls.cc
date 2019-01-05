@@ -364,11 +364,11 @@ int tls_session_new_cb(SSL *ssl, SSL_SESSION *session) {
 
 namespace {
 SSL_SESSION *tls_session_get_cb(SSL *ssl,
-#if OPENSSL_1_1_API || LIBRESSL_2_7_API
+#if OPENSSL_1_1_API
                                 const unsigned char *id,
-#else  // !(OPENSSL_1_1_API || LIBRESSL_2_7_API)
+#else  // !OPENSSL_1_1_API
                                 unsigned char *id,
-#endif // !(OPENSSL_1_1_API || LIBRESSL_2_7_API)
+#endif // !OPENSSL_1_1_API
                                 int idlen, int *copy) {
   auto conn = static_cast<Connection *>(SSL_get_app_data(ssl));
   auto handler = static_cast<ClientHandler *>(conn->data);
@@ -2046,9 +2046,9 @@ StringRef get_x509_serial(BlockAllocator &balloc, X509 *x) {
     return StringRef{};
   }
 
-  std::array<uint8_t, 20> b;
+  std::array<uint8_t, 8> b;
   auto n = BN_bn2bin(bn, b.data());
-  assert(n <= 20);
+  assert(n == b.size());
 
   return util::format_hex(balloc, StringRef{std::begin(b), std::end(b)});
 #endif // !OPENSSL_1_1_API

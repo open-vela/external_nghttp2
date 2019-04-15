@@ -696,9 +696,8 @@ int HttpDownstreamConnection::process_blocked_request_buf() {
     }
   }
 
-  if (downstream_->get_blocked_request_data_eof() &&
-      downstream_->get_chunked_request()) {
-    end_upload_data_chunk();
+  if (downstream_->get_blocked_request_data_eof()) {
+    return end_upload_data();
   }
 
   return 0;
@@ -752,12 +751,6 @@ int HttpDownstreamConnection::end_upload_data() {
     return 0;
   }
 
-  end_upload_data_chunk();
-
-  return 0;
-}
-
-void HttpDownstreamConnection::end_upload_data_chunk() {
   const auto &req = downstream_->request();
 
   auto output = downstream_->get_request_buf();
@@ -770,6 +763,8 @@ void HttpDownstreamConnection::end_upload_data_chunk() {
                                             http2::HDOP_STRIP_ALL);
     output->append("\r\n");
   }
+
+  return 0;
 }
 
 namespace {

@@ -34,7 +34,8 @@
 
 -include $(TOPDIR)/Make.defs
 
-CFLAGS += -D__unix__
+CFLAGS += -I$(APPDIR)/external/nghttp2
+CFLAGS += -DHAVE_CONFIG_H
 CSRCS = $(wildcard *.c)
 
 include $(APPDIR)/Application.mk

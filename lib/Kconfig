@@ -3,9 +3,8 @@
 # see kconfig-language at https://www.kernel.org/doc/Documentation/kbuild/kconfig-language.txt
 #
 
-config ENABLE_NGHTTP2
+config NGHTTP2
 	bool "Enable NGHTTP2"
 	default n
-	depends on MBED_TLS_LIB
 	---help---
 		nghttp2 is an implementation of HTTP/2 and its header compression algorithm HPACK.

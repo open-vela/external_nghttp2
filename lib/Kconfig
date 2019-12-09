@@ -3,7 +3,7 @@
 # see kconfig-language at https://www.kernel.org/doc/Documentation/kbuild/kconfig-language.txt
 #
 
-config NGHTTP2
+config LIB_NGHTTP2
 	bool "Enable NGHTTP2"
 	default n
 	---help---

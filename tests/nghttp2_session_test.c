@@ -10141,7 +10141,7 @@ void test_nghttp2_session_create_idle_stream(void) {
 
   /* If pri_spec->stream_id does not exist, and it is idle stream, it
      is created too */
-  nghttp2_priority_spec_init(&pri_spec, 8, 109, 0);
+  nghttp2_priority_spec_init(&pri_spec, 10, 109, 0);
 
   rv = nghttp2_session_create_idle_stream(session, 8, &pri_spec);
 
@@ -10174,7 +10174,7 @@ void test_nghttp2_session_create_idle_stream(void) {
   CU_ASSERT(NGHTTP2_ERR_INVALID_ARGUMENT == rv);
 
   /* It is an error to create non-idle stream */
-  session->next_stream_id = 20;
+  session->last_sent_stream_id = 20;
   pri_spec.stream_id = 2;
 
   rv = nghttp2_session_create_idle_stream(session, 18, &pri_spec);
@@ -10466,62 +10466,6 @@ void test_nghttp2_session_set_local_window_size(void) {
   CU_ASSERT(1 == item->frame.window_update.window_size_increment);
 
   CU_ASSERT(0 == nghttp2_session_send(session));
-
-  nghttp2_session_del(session);
-
-  /* Make sure that nghttp2_session_set_local_window_size submits
-     WINDOW_UPDATE if necessary to increase stream-level window. */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-  stream = open_sent_stream(session, 1);
-  stream->recv_window_size = NGHTTP2_INITIAL_WINDOW_SIZE;
-
-  CU_ASSERT(0 == nghttp2_session_set_local_window_size(
-                     session, NGHTTP2_FLAG_NONE, 1, 0));
-  CU_ASSERT(0 == stream->recv_window_size);
-  CU_ASSERT(0 == nghttp2_session_get_stream_local_window_size(session, 1));
-  /* This should submit WINDOW_UPDATE frame because stream-level
-     receiving window is now full. */
-  CU_ASSERT(0 ==
-            nghttp2_session_set_local_window_size(session, NGHTTP2_FLAG_NONE, 1,
-                                                  NGHTTP2_INITIAL_WINDOW_SIZE));
-  CU_ASSERT(0 == stream->recv_window_size);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            nghttp2_session_get_stream_local_window_size(session, 1));
-
-  item = nghttp2_session_get_next_ob_item(session);
-
-  CU_ASSERT(NGHTTP2_WINDOW_UPDATE == item->frame.hd.type);
-  CU_ASSERT(1 == item->frame.hd.stream_id);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            item->frame.window_update.window_size_increment);
-
-  nghttp2_session_del(session);
-
-  /* Make sure that nghttp2_session_set_local_window_size submits
-     WINDOW_UPDATE if necessary to increase connection-level
-     window. */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-  session->recv_window_size = NGHTTP2_INITIAL_WINDOW_SIZE;
-
-  CU_ASSERT(0 == nghttp2_session_set_local_window_size(
-                     session, NGHTTP2_FLAG_NONE, 0, 0));
-  CU_ASSERT(0 == session->recv_window_size);
-  CU_ASSERT(0 == nghttp2_session_get_local_window_size(session));
-  /* This should submit WINDOW_UPDATE frame because connection-level
-     receiving window is now full. */
-  CU_ASSERT(0 ==
-            nghttp2_session_set_local_window_size(session, NGHTTP2_FLAG_NONE, 0,
-                                                  NGHTTP2_INITIAL_WINDOW_SIZE));
-  CU_ASSERT(0 == session->recv_window_size);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            nghttp2_session_get_local_window_size(session));
-
-  item = nghttp2_session_get_next_ob_item(session);
-
-  CU_ASSERT(NGHTTP2_WINDOW_UPDATE == item->frame.hd.type);
-  CU_ASSERT(0 == item->frame.hd.stream_id);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            item->frame.window_update.window_size_increment);
 
   nghttp2_session_del(session);
 }

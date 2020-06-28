@@ -2851,11 +2851,10 @@ NGHTTP2_EXTERN void nghttp2_session_del(nghttp2_session *session);
  *
  * This function retrieves the highest prioritized frame from the
  * outbound queue and sends it to the remote peer.  It does this as
- * many times as possible until the user callback
+ * many as possible until the user callback
  * :type:`nghttp2_send_callback` returns
  * :enum:`NGHTTP2_ERR_WOULDBLOCK`, the outbound queue becomes empty
- * or flow control is triggered (remote window size becomes depleted
- * or maximum number of concurrent streams is reached).
+ * or remote window size becomes depleted due to flow control.
  * This function calls several callback functions which are passed
  * when initializing the |session|.  Here is the simple time chart
  * which tells when each callback is invoked:

@@ -54,10 +54,7 @@ EXTRA_DIST += build_config.rb mruby/*
 .PHONY: all-local clean mruby
 
 mruby:
-	mkdir -p "${abs_builddir}/mruby/build"
-	diff "${srcdir}/build_config.rb" "${abs_builddir}/mruby/build/build_config.rb" >& /dev/null || \
-	cp "${srcdir}/build_config.rb" "${abs_builddir}/mruby/build"
-	MRUBY_CONFIG="${abs_builddir}/mruby/build/build_config.rb" \
+	MRUBY_CONFIG="${srcdir}/build_config.rb" \
 	BUILD_DIR="${abs_builddir}/mruby/build" \
 	INSTALL_DIR="${abs_builddir}/mruby/build/install/bin" \
 	CC="${CC}" CXX="$(firstword $(CXX))" LD="${LD}" \
@@ -69,10 +66,8 @@ mruby:
 all-local: mruby
 
 clean-local:
-	[ ! -f "${abs_builddir}/mruby/build/build_config.rb" ] || \
-	MRUBY_CONFIG="${abs_builddir}/mruby/build/build_config.rb" \
+	MRUBY_CONFIG="${srcdir}/build_config.rb" \
 	BUILD_DIR="${abs_builddir}/mruby/build" \
-	CC="${CC}" \
 	"${srcdir}/mruby/minirake" -f "${srcdir}/mruby/Rakefile" clean
 
 endif # HAVE_MRUBY

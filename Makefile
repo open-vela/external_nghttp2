@@ -16,8 +16,10 @@
 
 include $(APPDIR)/Make.defs
 
-CFLAGS += -I$(APPDIR)/external/nghttp2
-CFLAGS += -DHAVE_CONFIG_H
 CSRCS = $(wildcard lib/*.c)
+
+CFLAGS += -DHAVE_CONFIG_H
+CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" .}
+CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" lib/includes}
 
 include $(APPDIR)/Application.mk

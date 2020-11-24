@@ -1,8 +1,7 @@
 /*
  * nghttp2 - HTTP/2 C Library
  *
- * Copyright (c) 2017 ngtcp2 contributors
- * Copyright (c) 2012 nghttp2 contributors
+ * Copyright (c) 2012 Tatsuhiro Tsujikawa
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -31,9 +30,8 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <nghttp2/nghttp2.h>
-
+#include "nghttp2_int.h"
 #include "nghttp2_mem.h"
-#include "nghttp2_ksl.h"
 
 /* Implementation of unordered map */
 
@@ -48,13 +46,8 @@ typedef struct nghttp2_map_entry {
 #endif
 } nghttp2_map_entry;
 
-typedef struct nghttp2_map_bucket {
-  nghttp2_map_entry *ptr;
-  nghttp2_ksl *ksl;
-} nghttp2_map_bucket;
-
 typedef struct {
-  nghttp2_map_bucket *table;
+  nghttp2_map_entry **table;
   nghttp2_mem *mem;
   size_t size;
   uint32_t tablelen;
@@ -124,11 +117,6 @@ nghttp2_map_entry *nghttp2_map_find(nghttp2_map *map, key_type key);
  *     The entry associated by |key| does not exist.
  */
 int nghttp2_map_remove(nghttp2_map *map, key_type key);
-
-/*
- * Removes all entries from |map|.
- */
-void nghttp2_map_clear(nghttp2_map *map);
 
 /*
  * Returns the number of items stored in the map |map|.

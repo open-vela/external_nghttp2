@@ -9,11 +9,7 @@
 #}
 {%- extends "layout.html" %}
 {% set title = _('Search') %}
-{% set display_vcs_links = False %}
-{%- block scripts %}
-    {{ super() }}
-    <script type="text/javascript" src="{{ pathto('_static/searchtools.js', 1) }}"></script>
-{%- endblock %}
+{% set script_files = script_files + ['_static/searchtools.js'] %}
 {% block footer %}
   <script type="text/javascript">
     jQuery(function() { Search.loadIndex("{{ pathto('searchindex.js', 1) }}"); });
@@ -27,14 +23,13 @@
   <noscript>
   <div id="fallback" class="admonition warning">
     <p class="last">
-      {% trans trimmed %}Please activate JavaScript to enable the search
+      {% trans %}Please activate JavaScript to enable the search
       functionality.{% endtrans %}
     </p>
   </div>
   </noscript>
 
   {% if search_performed %}
-    {# Translators: Search is a noun, not a verb #}
     <h2>{{ _('Search Results') }}</h2>
     {% if not search_results %}
       <p>{{ _('Your search did not match any documents. Please make sure that all words are spelled correctly and that you\'ve selected enough categories.') }}</p>

@@ -57,10 +57,7 @@ void mcpool_clear_cb(struct ev_loop *loop, ev_timer *w, int revents) {
   if (worker->get_worker_stat()->num_connections != 0) {
     return;
   }
-  auto mcpool = worker->get_mcpool();
-  if (mcpool->freelistsize == mcpool->poolsize) {
-    worker->get_mcpool()->clear();
-  }
+  worker->get_mcpool()->clear();
 }
 } // namespace
 

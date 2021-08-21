@@ -107,6 +107,11 @@ AC_ARG_ENABLE([lib-only],
                     [Build libnghttp2 only.  This is a short hand for --disable-app --disable-examples --disable-hpack-tools --disable-python-bindings])],
     [request_lib_only=$enableval], [request_lib_only=no])
 
+AC_ARG_ENABLE([http3],
+    [AS_HELP_STRING([--enable-http3],
+                    [(EXPERIMENTAL) Enable HTTP/3.  This requires ngtcp2, nghttp3, and a custom OpenSSL.])],
+    [request_http3=$enableval], [request_http3=no])
+
 AC_ARG_WITH([libxml2],
     [AS_HELP_STRING([--with-libxml2],
                     [Use libxml2 [default=check]])],
@@ -171,6 +176,16 @@ AC_ARG_WITH([cython],
     [AS_HELP_STRING([--with-cython=PATH],
                     [Use cython in given PATH])],
     [cython_path=$withval], [])
+
+AC_ARG_WITH([libngtcp2],
+    [AS_HELP_STRING([--with-libngtcp2],
+                    [Use libngtcp2 [default=check]])],
+    [request_libngtcp2=$withval], [request_libngtcp2=check])
+
+AC_ARG_WITH([libnghttp3],
+    [AS_HELP_STRING([--with-libnghttp3],
+                    [Use libnghttp3 [default=check]])],
+    [request_libnghttp3=$withval], [request_libnghttp3=check])
 
 dnl Define variables
 AC_ARG_VAR([CYTHON], [the Cython executable])
@@ -334,6 +349,13 @@ case "$host_os" in
     ;;
 esac
 
+case "${build}" in
+  *-apple-darwin*)
+    EXTRA_DEFS="-D__APPLE_USE_RFC_3542"
+    AC_SUBST([EXTRA_DEFS])
+    ;;
+esac
+
 # zlib
 have_zlib=no
 if test "x${request_zlib}" != "xno"; then
@@ -452,6 +474,53 @@ fi
 if test "x${request_libcares}" = "xyes" &&
    test "x${have_libcares}" != "xyes"; then
   AC_MSG_ERROR([libcares was requested (--with-libcares) but not found])
+fi
+
+# ngtcp2 (for src)
+have_libngtcp2=no
+if test "x${request_libngtcp2}" != "xno"; then
+  PKG_CHECK_MODULES([LIBNGTCP2], [libngtcp2 >= 0.0.0], [have_libngtcp2=yes],
+                    [have_libngtcp2=no])
+  if test "x${have_libngtcp2}" = "xno"; then
+    AC_MSG_NOTICE($LIBNGTCP2_PKG_ERRORS)
+  fi
+fi
+
+if test "x${request_libngtcp2}" = "xyes" &&
+   test "x${have_libngtcp2}" != "xyes"; then
+  AC_MSG_ERROR([libngtcp2 was requested (--with-libngtcp2) but not found])
+fi
+
+# ngtcp2_crypto_openssl (for src)
+have_libngtcp2_crypto_openssl=no
+if test "x${request_libngtcp2}" != "xno"; then
+  PKG_CHECK_MODULES([LIBNGTCP2_CRYPTO_OPENSSL],
+                    [libngtcp2_crypto_openssl >= 0.0.0],
+                    [have_libngtcp2_crypto_openssl=yes],
+                    [have_libngtcp2_crypto_openssl=no])
+  if test "x${have_libngtcp2_crypto_openssl}" = "xno"; then
+    AC_MSG_NOTICE($LIBNGTCP2_CRYPTO_OPENSSL_PKG_ERRORS)
+  fi
+fi
+
+if test "x${request_libngtcp2}" = "xyes" &&
+   test "x${have_libngtcp2_crypto_openssl}" != "xyes"; then
+  AC_MSG_ERROR([libngtcp2_crypto_openssl was requested (--with-libngtcp2) but not found])
+fi
+
+# nghttp3 (for src)
+have_libnghttp3=no
+if test "x${request_libnghttp3}" != "xno"; then
+  PKG_CHECK_MODULES([LIBNGHTTP3], [libnghttp3 >= 0.0.0], [have_libnghttp3=yes],
+                    [have_libnghttp3=no])
+  if test "x${have_libnghttp3}" = "xno"; then
+    AC_MSG_NOTICE($LIBNGHTTP3_PKG_ERRORS)
+  fi
+fi
+
+if test "x${request_libnghttp3}" = "xyes" &&
+   test "x${have_libnghttp3}" != "xyes"; then
+  AC_MSG_ERROR([libnghttp3 was requested (--with-libnghttp3) but not found])
 fi
 
 # libevent_openssl (for examples)
@@ -597,6 +666,23 @@ if test "x${request_app}" = "xyes" &&
 fi
 
 AM_CONDITIONAL([ENABLE_APP], [ test "x${enable_app}" = "xyes" ])
+
+# Check HTTP/3 support
+enable_http3=no
+if test "x${request_http3}" != "xno" &&
+   test "x${have_libngtcp2}" = "xyes" &&
+   test "x${have_libngtcp2_crypto_openssl}" = "xyes" &&
+   test "x${have_libnghttp3}" = "xyes"; then
+  enable_http3=yes
+  AC_DEFINE([ENABLE_HTTP3], [1], [Define to 1 if HTTP/3 is enabled.])
+fi
+
+if test "x${request_http3}" = "xyes" &&
+   test "x${enable_http3}" != "xyes"; then
+  AC_MSG_ERROR([HTTP/3 was requested (--enable-http3) but dependencies are not met.])
+fi
+
+AM_CONDITIONAL([ENABLE_HTTP3], [ test "x${enable_http3}" = "xyes" ])
 
 enable_hpack_tools=no
 # HPACK tools requires jansson
@@ -1011,6 +1097,9 @@ AC_MSG_NOTICE([summary of build options:
       Libxml2:        ${have_libxml2} (CFLAGS='${LIBXML2_CFLAGS}' LIBS='${LIBXML2_LIBS}')
       Libev:          ${have_libev} (CFLAGS='${LIBEV_CFLAGS}' LIBS='${LIBEV_LIBS}')
       Libc-ares:      ${have_libcares} (CFLAGS='${LIBCARES_CFLAGS}' LIBS='${LIBCARES_LIBS}')
+      libngtcp2:      ${have_libngtcp2} (CFLAGS='${LIBNGTCP2_CFLAGS}' LIBS='${LIBNGTCP2_LIBS}')
+      libngtcp2_crypto_openssl: ${have_libngtcp2_crypto_openssl} (CFLAGS='${LIBNGTCP2_CRYPTO_OPENSSL_CFLAGS}' LIBS='${LIBNGTCP2_CRYPTO_OPENSSL_LIBS}')
+      libnghttp3:     ${have_libnghttp3} (CFLAGS='${LIBNGHTTP3_CFLAGS}' LIBS='${LIBNGHTTP3_LIBS}')
       Libevent(SSL):  ${have_libevent_openssl} (CFLAGS='${LIBEVENT_OPENSSL_CFLAGS}' LIBS='${LIBEVENT_OPENSSL_LIBS}')
       Jansson:        ${have_jansson} (CFLAGS='${JANSSON_CFLAGS}' LIBS='${JANSSON_LIBS}')
       Jemalloc:       ${have_jemalloc} (CFLAGS='${JEMALLOC_CFLAGS}' LIBS='${JEMALLOC_LIBS}')
@@ -1032,4 +1121,5 @@ AC_MSG_NOTICE([summary of build options:
       Examples:       ${enable_examples}
       Python bindings:${enable_python_bindings}
       Threading:      ${enable_threads}
+      HTTP/3 (EXPERIMENTAL): ${enable_http3}
 ])

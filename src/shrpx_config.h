@@ -370,7 +370,6 @@ enum class Proto {
   NONE,
   HTTP1,
   HTTP2,
-  HTTP3,
   MEMCACHED,
 };
 
@@ -459,7 +458,6 @@ struct UpstreamAddr {
   bool sni_fwd;
   // true if client is supposed to send PROXY protocol v1 header.
   bool accept_proxy_protocol;
-  bool quic;
   int fd;
 };
 
@@ -704,18 +702,6 @@ struct TLSConfig {
   bool no_postpone_early_data;
 };
 
-struct QUICConfig {
-  struct {
-    std::array<uint8_t, 32> secret;
-  } stateless_reset;
-  struct {
-    ev_tstamp idle;
-  } timeout;
-  struct {
-    bool log;
-  } debug;
-};
-
 // custom error page
 struct ErrorPage {
   // not NULL-terminated
@@ -922,10 +908,6 @@ struct ConnectionConfig {
   } listener;
 
   struct {
-    std::vector<UpstreamAddr> addrs;
-  } quic_listener;
-
-  struct {
     struct {
       ev_tstamp http2_read;
       ev_tstamp read;
@@ -968,7 +950,6 @@ struct Config {
         http{},
         http2{},
         tls{},
-        quic{},
         logging{},
         conn{},
         api{},
@@ -1002,7 +983,6 @@ struct Config {
   HttpConfig http;
   Http2Config http2;
   TLSConfig tls;
-  QUICConfig quic;
   LoggingConfig logging;
   ConnectionConfig conn;
   APIConfig api;

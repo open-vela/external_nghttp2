@@ -53,7 +53,6 @@ class Downstream;
 struct WorkerStat;
 struct DownstreamAddrGroup;
 struct DownstreamAddr;
-class Http3Upstream;
 
 class ClientHandler {
 public:
@@ -70,9 +69,6 @@ public:
   // Performs TLS I/O
   int read_tls();
   int write_tls();
-
-  int read_quic(const UpstreamAddr *faddr, const Address &remote_addr,
-                const Address &local_addr, const uint8_t *data, size_t datalen);
 
   int upstream_noop();
   int upstream_read();
@@ -146,9 +142,6 @@ public:
   ev_io *get_wev();
 
   void setup_upstream_io_callback();
-
-  void setup_http3_upstream(std::unique_ptr<Http3Upstream> &&upstream);
-  int write_quic();
 
   // Returns string suitable for use in "by" parameter of Forwarded
   // header field.

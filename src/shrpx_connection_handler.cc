@@ -156,17 +156,6 @@ ConnectionHandler::~ConnectionHandler() {
   ev_timer_stop(loop_, &ocsp_timer_);
   ev_timer_stop(loop_, &disable_acceptor_timer_);
 
-  for (auto ssl_ctx : quic_all_ssl_ctx_) {
-    if (ssl_ctx == nullptr) {
-      continue;
-    }
-
-    auto tls_ctx_data =
-        static_cast<tls::TLSContextData *>(SSL_CTX_get_app_data(ssl_ctx));
-    delete tls_ctx_data;
-    SSL_CTX_free(ssl_ctx);
-  }
-
   for (auto ssl_ctx : all_ssl_ctx_) {
     auto tls_ctx_data =
         static_cast<tls::TLSContextData *>(SSL_CTX_get_app_data(ssl_ctx));
@@ -220,16 +209,6 @@ int ConnectionHandler::create_single_worker() {
       nb_
 #endif // HAVE_NEVERBLEED
   );
-
-  quic_cert_tree_ = tls::create_cert_lookup_tree();
-  auto quic_sv_ssl_ctx = tls::setup_quic_server_ssl_context(
-      quic_all_ssl_ctx_, quic_indexed_ssl_ctx_, quic_cert_tree_.get()
-#ifdef HAVE_NEVERBLEED
-                                                    ,
-      nb_
-#endif // HAVE_NEVERBLEED
-  );
-
   auto cl_ssl_ctx = tls::setup_downstream_client_ssl_context(
 #ifdef HAVE_NEVERBLEED
       nb_
@@ -238,7 +217,6 @@ int ConnectionHandler::create_single_worker() {
 
   if (cl_ssl_ctx) {
     all_ssl_ctx_.push_back(cl_ssl_ctx);
-    quic_all_ssl_ctx_.push_back(nullptr);
   }
 
   auto config = get_config();
@@ -255,22 +233,17 @@ int ConnectionHandler::create_single_worker() {
           tlsconf.cacert, memcachedconf.cert_file,
           memcachedconf.private_key_file, nullptr);
       all_ssl_ctx_.push_back(session_cache_ssl_ctx);
-      quic_all_ssl_ctx_.push_back(nullptr);
     }
   }
 
   single_worker_ = std::make_unique<Worker>(
       loop_, sv_ssl_ctx, cl_ssl_ctx, session_cache_ssl_ctx, cert_tree_.get(),
-      quic_sv_ssl_ctx, quic_cert_tree_.get(), ticket_keys_, this,
-      config->conn.downstream);
+      ticket_keys_, this, config->conn.downstream);
 #ifdef HAVE_MRUBY
   if (single_worker_->create_mruby_context() != 0) {
     return -1;
   }
 #endif // HAVE_MRUBY
-  if (single_worker_->setup_quic_server_socket() != 0) {
-    return -1;
-  }
 
   return 0;
 }
@@ -287,16 +260,6 @@ int ConnectionHandler::create_worker_thread(size_t num) {
       nb_
 #  endif // HAVE_NEVERBLEED
   );
-
-  quic_cert_tree_ = tls::create_cert_lookup_tree();
-  auto quic_sv_ssl_ctx = tls::setup_quic_server_ssl_context(
-      quic_all_ssl_ctx_, quic_indexed_ssl_ctx_, quic_cert_tree_.get()
-#  ifdef HAVE_NEVERBLEED
-                                                    ,
-      nb_
-#  endif // HAVE_NEVERBLEED
-  );
-
   auto cl_ssl_ctx = tls::setup_downstream_client_ssl_context(
 #  ifdef HAVE_NEVERBLEED
       nb_
@@ -305,7 +268,6 @@ int ConnectionHandler::create_worker_thread(size_t num) {
 
   if (cl_ssl_ctx) {
     all_ssl_ctx_.push_back(cl_ssl_ctx);
-    quic_all_ssl_ctx_.push_back(nullptr);
   }
 
   auto config = get_config();
@@ -329,7 +291,6 @@ int ConnectionHandler::create_worker_thread(size_t num) {
           tlsconf.cacert, memcachedconf.cert_file,
           memcachedconf.private_key_file, nullptr);
       all_ssl_ctx_.push_back(session_cache_ssl_ctx);
-      quic_all_ssl_ctx_.push_back(nullptr);
     }
   }
 
@@ -338,17 +299,12 @@ int ConnectionHandler::create_worker_thread(size_t num) {
 
     auto worker = std::make_unique<Worker>(
         loop, sv_ssl_ctx, cl_ssl_ctx, session_cache_ssl_ctx, cert_tree_.get(),
-        quic_sv_ssl_ctx, quic_cert_tree_.get(), ticket_keys_, this,
-        config->conn.downstream);
+        ticket_keys_, this, config->conn.downstream);
 #  ifdef HAVE_MRUBY
     if (worker->create_mruby_context() != 0) {
       return -1;
     }
 #  endif // HAVE_MRUBY
-    if ((!apiconf.enabled || i != 0) &&
-        worker->setup_quic_server_socket() != 0) {
-      return -1;
-    }
 
     workers_.push_back(std::move(worker));
     worker_loops_.push_back(loop);
@@ -646,7 +602,6 @@ void ConnectionHandler::handle_ocsp_complete() {
   ev_child_stop(loop_, &ocsp_.chldev);
 
   assert(ocsp_.next < all_ssl_ctx_.size());
-  assert(all_ssl_ctx_.size() == quic_all_ssl_ctx_.size());
 
   auto ssl_ctx = all_ssl_ctx_[ocsp_.next];
   auto tls_ctx_data =
@@ -674,29 +629,6 @@ void ConnectionHandler::handle_ocsp_complete() {
   if (tlsconf.ocsp.no_verify ||
       tls::verify_ocsp_response(ssl_ctx, ocsp_.resp.data(),
                                 ocsp_.resp.size()) == 0) {
-    // We have list of SSL_CTX with the same certificate in
-    // quic_all_ssl_ctx_ as well.  Some SSL_CTXs are missing there in
-    // that case we get nullptr.
-    auto quic_ssl_ctx = quic_all_ssl_ctx_[ocsp_.next];
-    if (quic_ssl_ctx) {
-      auto quic_tls_ctx_data = static_cast<tls::TLSContextData *>(
-          SSL_CTX_get_app_data(quic_ssl_ctx));
-#ifndef OPENSSL_IS_BORINGSSL
-#  ifdef HAVE_ATOMIC_STD_SHARED_PTR
-      std::atomic_store_explicit(
-          &quic_tls_ctx_data->ocsp_data,
-          std::make_shared<std::vector<uint8_t>>(ocsp_.resp),
-          std::memory_order_release);
-#  else  // !HAVE_ATOMIC_STD_SHARED_PTR
-      std::lock_guard<std::mutex> g(quic_tls_ctx_data->mu);
-      quic_tls_ctx_data->ocsp_data =
-          std::make_shared<std::vector<uint8_t>>(ocsp_.resp);
-#  endif // !HAVE_ATOMIC_STD_SHARED_PTR
-#else    // OPENSSL_IS_BORINGSSL
-      SSL_CTX_set_ocsp_response(ssl_ctx, ocsp_.resp.data(), ocsp_.resp.size());
-#endif   // OPENSSL_IS_BORINGSSL
-    }
-
 #ifndef OPENSSL_IS_BORINGSSL
 #  ifdef HAVE_ATOMIC_STD_SHARED_PTR
     std::atomic_store_explicit(
@@ -877,7 +809,6 @@ SSL_CTX *ConnectionHandler::create_tls_ticket_key_memcached_ssl_ctx() {
       nullptr);
 
   all_ssl_ctx_.push_back(ssl_ctx);
-  quic_all_ssl_ctx_.push_back(nullptr);
 
   return ssl_ctx;
 }
@@ -938,11 +869,6 @@ SSL_CTX *ConnectionHandler::get_ssl_ctx(size_t idx) const {
 const std::vector<SSL_CTX *> &
 ConnectionHandler::get_indexed_ssl_ctx(size_t idx) const {
   return indexed_ssl_ctx_[idx];
-}
-
-const std::vector<SSL_CTX *> &
-ConnectionHandler::get_quic_indexed_ssl_ctx(size_t idx) const {
-  return quic_indexed_ssl_ctx_[idx];
 }
 
 void ConnectionHandler::set_enable_acceptor_on_ocsp_completion(bool f) {

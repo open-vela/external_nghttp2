@@ -46,9 +46,6 @@ AM_CPPFLAGS = \
 	@LIBEV_CFLAGS@ \
 	@OPENSSL_CFLAGS@ \
 	@LIBCARES_CFLAGS@ \
-	@LIBNGHTTP3_CFLAGS@ \
-	@LIBNGTCP2_CRYPTO_OPENSSL_CFLAGS@ \
-	@LIBNGTCP2_CFLAGS@ \
 	@JANSSON_CFLAGS@ \
 	@ZLIB_CFLAGS@ \
 	@DEFS@
@@ -62,9 +59,6 @@ LDADD = $(top_builddir)/lib/libnghttp2.la \
 	@LIBEV_LIBS@ \
 	@OPENSSL_LIBS@ \
 	@LIBCARES_LIBS@ \
-	@LIBNGHTTP3_LIBS@ \
-	@LIBNGTCP2_CRYPTO_OPENSSL_LIBS@ \
-	@LIBNGTCP2_LIBS@ \
 	@SYSTEMD_LIBS@ \
 	@JANSSON_LIBS@ \
 	@ZLIB_LIBS@ \
@@ -103,10 +97,7 @@ h2load_SOURCES = util.cc util.h \
 	tls.cc tls.h \
 	h2load_session.h \
 	h2load_http2_session.cc h2load_http2_session.h \
-	h2load_http1_session.cc h2load_http1_session.h \
-	h2load_http3_session.cc h2load_http3_session.h \
-	h2load_quic.cc h2load_quic.h \
-	quic.cc quic.h
+	h2load_http1_session.cc h2load_http1_session.h
 
 NGHTTPX_SRCS = \
 	util.cc util.h http2.cc http2.h timegm.c timegm.h base64.h \
@@ -153,12 +144,6 @@ NGHTTPX_SRCS = \
 	shrpx_dns_resolver.cc shrpx_dns_resolver.h \
 	shrpx_dual_dns_resolver.cc shrpx_dual_dns_resolver.h \
 	shrpx_dns_tracker.cc shrpx_dns_tracker.h \
-	shrpx_quic.cc shrpx_quic.h \
-	shrpx_quic_listener.cc shrpx_quic_listener.h \
-	shrpx_quic_connection_handler.cc shrpx_quic_connection_handler.h \
-	shrpx_http3_upstream.cc shrpx_http3_upstream.h \
-	http3.cc http3.h \
-	quic.cc quic.h \
 	buffer.h memchunk.h template.h allocator.h \
 	xsi_strerror.c xsi_strerror.h
 

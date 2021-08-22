@@ -1548,19 +1548,6 @@ void fill_default_config(Config *config) {
         downstreamconf.option, downstreamconf.encoder_dynamic_table_size);
   }
 
-  auto &quicconf = config->quic;
-  {
-    quicconf.timeout.idle = 30_s;
-
-    auto &stateless_resetconf = quicconf.stateless_reset;
-    // TODO Find better place to do this and error handling.
-    if (RAND_bytes(stateless_resetconf.secret.data(),
-                   stateless_resetconf.secret.size()) != 1) {
-      LOG(FATAL) << "Unable to generate stateless reset secret";
-      exit(EXIT_FAILURE);
-    }
-  }
-
   auto &loggingconf = config->logging;
   {
     auto &accessconf = loggingconf.access;

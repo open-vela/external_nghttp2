@@ -1,9 +1,9 @@
 MRuby::Build.new do |conf|
-  # TODO use same compilers configured in configure script
-  toolchain :clang
+  toolchain :clang if ENV['CC'].include? "clang"
+  toolchain :gcc if ENV['CC'].include? "gcc"
 
   # C++ project needs this.  Without this, mruby exception does not
-  # properly destory C++ object allocated on stack.
+  # properly destroy C++ object allocated on stack.
   conf.enable_cxx_exception
 
   conf.build_dir = ENV['BUILD_DIR']

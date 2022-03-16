@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from gentokenlookup import gentokenlookup
 
@@ -113,6 +113,7 @@ OPTIONS = [
     "max-request-header-fields",
     "header-field-buffer",
     "max-header-fields",
+    "no-http2-cipher-block-list",
     "no-http2-cipher-black-list",
     "backend-http1-tls",
     "tls-session-cache-memcached-cert-file",
@@ -155,6 +156,7 @@ OPTIONS = [
     "frontend-keep-alive-timeout",
     "psk-secrets",
     "client-psk-secrets",
+    "client-no-http2-cipher-block-list",
     "client-no-http2-cipher-black-list",
     "client-ciphers",
     "accesslog-write-early",
@@ -175,6 +177,28 @@ OPTIONS = [
     "tls13-ciphers",
     "tls13-client-ciphers",
     "no-strip-incoming-early-data",
+    "quic-bpf-program-file",
+    "no-quic-bpf",
+    "http2-altsvc",
+    "frontend-http3-read-timeout",
+    "frontend-quic-idle-timeout",
+    "frontend-quic-debug-log",
+    "frontend-http3-window-size",
+    "frontend-http3-connection-window-size",
+    "frontend-http3-max-window-size",
+    "frontend-http3-max-connection-window-size",
+    "frontend-http3-max-concurrent-streams",
+    "frontend-quic-early-data",
+    "frontend-quic-qlog-dir",
+    "frontend-quic-require-token",
+    "frontend-quic-congestion-controller",
+    "quic-server-id",
+    "frontend-quic-secret-file",
+    "rlimit-memlock",
+    "max-worker-processes",
+    "worker-process-grace-shutdown-period",
+    "frontend-quic-initial-rtt",
+    "require-http-scheme",
 ]
 
 LOGVARS = [
@@ -205,6 +229,10 @@ LOGVARS = [
     "tls_client_serial",
     "backend_host",
     "backend_port",
+    "method",
+    "path",
+    "path_without_query",
+    "protocol_version",
 ]
 
 if __name__ == '__main__':

@@ -57,11 +57,15 @@ constexpr char DEFAULT_CIPHER_LIST[] =
     "AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256";
 
 constexpr char DEFAULT_TLS13_CIPHER_LIST[] =
-#if OPENSSL_1_1_1_API
+#if OPENSSL_3_0_0_API
+    "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256"
+#elif OPENSSL_1_1_1_API && !defined(OPENSSL_IS_BORINGSSL)
     TLS_DEFAULT_CIPHERSUITES
-#else  // !OPENSSL_1_1_1_API
+#else  // !OPENSSL_3_0_0_API && !(OPENSSL_1_1_1_API &&
+       // !defined(OPENSSL_IS_BORINGSSL))
     ""
-#endif // !OPENSSL_1_1_1_API
+#endif // !OPENSSL_3_0_0_API && !(OPENSSL_1_1_1_API &&
+       // !defined(OPENSSL_IS_BORINGSSL))
     ;
 
 constexpr auto NGHTTP2_TLS_MIN_VERSION = TLS1_VERSION;
@@ -87,14 +91,14 @@ TLSSessionInfo *get_tls_session_info(TLSSessionInfo *tls_info, SSL *ssl);
 bool check_http2_tls_version(SSL *ssl);
 
 // Returns true iff the negotiated cipher suite is in HTTP/2 cipher
-// black list.
-bool check_http2_cipher_black_list(SSL *ssl);
+// block list.
+bool check_http2_cipher_block_list(SSL *ssl);
 
 // Returns true if SSL/TLS requirement for HTTP/2 is fulfilled.
 // To fulfill the requirement, the following 2 terms must be hold:
 //
 // 1. The negotiated protocol must be TLSv1.2.
-// 2. The negotiated cipher cuite is not listed in the black list
+// 2. The negotiated cipher cuite is not listed in the block list
 //    described in RFC 7540.
 bool check_http2_requirement(SSL *ssl);
 

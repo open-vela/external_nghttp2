@@ -106,23 +106,6 @@ int on_stream_close_callback(nghttp2_session *session, int32_t stream_id,
 } // namespace
 
 namespace {
-int on_frame_not_send_callback(nghttp2_session *session,
-                               const nghttp2_frame *frame, int lib_error_code,
-                               void *user_data) {
-  if (frame->hd.type != NGHTTP2_HEADERS ||
-      frame->headers.cat != NGHTTP2_HCAT_REQUEST) {
-    return 0;
-  }
-
-  auto client = static_cast<Client *>(user_data);
-  // request was not sent.  Mark it as error.
-  client->on_stream_close(frame->hd.stream_id, false);
-
-  return 0;
-}
-} // namespace
-
-namespace {
 int before_frame_send_callback(nghttp2_session *session,
                                const nghttp2_frame *frame, void *user_data) {
   if (frame->hd.type != NGHTTP2_HEADERS ||
@@ -211,9 +194,6 @@ void Http2Session::on_connect() {
   nghttp2_session_callbacks_set_on_header_callback(callbacks,
                                                    on_header_callback);
 
-  nghttp2_session_callbacks_set_on_frame_not_send_callback(
-      callbacks, on_frame_not_send_callback);
-
   nghttp2_session_callbacks_set_before_frame_send_callback(
       callbacks, before_frame_send_callback);
 
@@ -235,7 +215,7 @@ void Http2Session::on_connect() {
 
   nghttp2_option_del(opt);
 
-  std::array<nghttp2_settings_entry, 3> iv;
+  std::array<nghttp2_settings_entry, 4> iv;
   size_t niv = 2;
   iv[0].settings_id = NGHTTP2_SETTINGS_ENABLE_PUSH;
   iv[0].value = 0;
@@ -245,6 +225,11 @@ void Http2Session::on_connect() {
   if (config->header_table_size != NGHTTP2_DEFAULT_HEADER_TABLE_SIZE) {
     iv[niv].settings_id = NGHTTP2_SETTINGS_HEADER_TABLE_SIZE;
     iv[niv].value = config->header_table_size;
+    ++niv;
+  }
+  if (config->max_frame_size != 16_k) {
+    iv[niv].settings_id = NGHTTP2_SETTINGS_MAX_FRAME_SIZE;
+    iv[niv].value = config->max_frame_size;
     ++niv;
   }
 

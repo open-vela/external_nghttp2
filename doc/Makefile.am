@@ -30,6 +30,8 @@ APIDOCS= \
 	nghttp2_check_authority.rst \
 	nghttp2_check_header_name.rst \
 	nghttp2_check_header_value.rst \
+	nghttp2_check_method.rst \
+	nghttp2_check_path.rst \
 	nghttp2_hd_deflate_bound.rst \
 	nghttp2_hd_deflate_change_table_size.rst \
 	nghttp2_hd_deflate_del.rst \
@@ -69,6 +71,7 @@ APIDOCS= \
 	nghttp2_option_set_peer_max_concurrent_streams.rst \
 	nghttp2_option_set_user_recv_extension_type.rst \
 	nghttp2_option_set_max_outbound_ack.rst \
+	nghttp2_option_set_max_settings.rst \
 	nghttp2_pack_settings_payload.rst \
 	nghttp2_priority_spec_check_default.rst \
 	nghttp2_priority_spec_default_init.rst \
@@ -202,23 +205,59 @@ EXTRA_DIST = \
 	sources/python-apiref.rst \
 	sources/building-android-binary.rst \
 	sources/contribute.rst \
-	_exts/sphinxcontrib/LICENSE.rubydomain \
-	_exts/sphinxcontrib/__init__.py \
-	_exts/sphinxcontrib/rubydomain.py \
+	sources/security.rst \
+	_exts/rubydomain/LICENSE.rubydomain \
+	_exts/rubydomain/__init__.py \
+	_exts/rubydomain/rubydomain.py \
 	_themes/sphinx_rtd_theme/__init__.py \
 	_themes/sphinx_rtd_theme/breadcrumbs.html \
 	_themes/sphinx_rtd_theme/footer.html \
 	_themes/sphinx_rtd_theme/layout.html \
-	_themes/sphinx_rtd_theme/layout_old.html \
+	_themes/sphinx_rtd_theme/locale/de/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/de/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/en/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/en/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/es/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/es/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/et/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/et/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/fr/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/fr/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/nl/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/nl/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/pt_BR/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/pt_BR/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/ru/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/ru/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/sphinx.pot \
+	_themes/sphinx_rtd_theme/locale/sv/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/sv/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/tr/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/tr/LC_MESSAGES/sphinx.po \
+	_themes/sphinx_rtd_theme/locale/zh_CN/LC_MESSAGES/sphinx.mo \
+	_themes/sphinx_rtd_theme/locale/zh_CN/LC_MESSAGES/sphinx.po \
 	_themes/sphinx_rtd_theme/search.html \
 	_themes/sphinx_rtd_theme/searchbox.html \
 	_themes/sphinx_rtd_theme/static/css/badge_only.css \
+	_themes/sphinx_rtd_theme/static/css/fonts/Roboto-Slab-Bold.woff \
+	_themes/sphinx_rtd_theme/static/css/fonts/Roboto-Slab-Bold.woff2 \
+	_themes/sphinx_rtd_theme/static/css/fonts/Roboto-Slab-Regular.woff \
+	_themes/sphinx_rtd_theme/static/css/fonts/Roboto-Slab-Regular.woff2 \
+	_themes/sphinx_rtd_theme/static/css/fonts/fontawesome-webfont.eot \
+	_themes/sphinx_rtd_theme/static/css/fonts/fontawesome-webfont.svg \
+	_themes/sphinx_rtd_theme/static/css/fonts/fontawesome-webfont.ttf \
+	_themes/sphinx_rtd_theme/static/css/fonts/fontawesome-webfont.woff \
+	_themes/sphinx_rtd_theme/static/css/fonts/fontawesome-webfont.woff2 \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-bold-italic.woff \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-bold-italic.woff2 \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-bold.woff \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-bold.woff2 \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-normal-italic.woff \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-normal-italic.woff2 \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-normal.woff \
+	_themes/sphinx_rtd_theme/static/css/fonts/lato-normal.woff2 \
 	_themes/sphinx_rtd_theme/static/css/theme.css \
-	_themes/sphinx_rtd_theme/static/fonts/FontAwesome.otf \
-	_themes/sphinx_rtd_theme/static/fonts/fontawesome-webfont.eot \
-	_themes/sphinx_rtd_theme/static/fonts/fontawesome-webfont.svg \
-	_themes/sphinx_rtd_theme/static/fonts/fontawesome-webfont.ttf \
-	_themes/sphinx_rtd_theme/static/fonts/fontawesome-webfont.woff \
+	_themes/sphinx_rtd_theme/static/js/badge_only.js \
 	_themes/sphinx_rtd_theme/static/js/theme.js \
 	_themes/sphinx_rtd_theme/theme.conf \
 	_themes/sphinx_rtd_theme/versions.html \
@@ -233,7 +272,7 @@ EXTRA_DIST = \
 
 # You can set these variables from the command line.
 SPHINXOPTS    =
-SPHINXBUILD   = sphinx-build
+SPHINXBUILD   ?= sphinx-build
 PAPER         =
 BUILDDIR      = manual
 

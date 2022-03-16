@@ -207,7 +207,7 @@ void test_util_http_date(void) {
 }
 
 void test_util_select_h2(void) {
-  const unsigned char *out = NULL;
+  const unsigned char *out = nullptr;
   unsigned char outlen = 0;
 
   // Check single entry and select it.
@@ -217,7 +217,7 @@ void test_util_select_h2(void) {
       memcmp(NGHTTP2_PROTO_VERSION_ID, out, NGHTTP2_PROTO_VERSION_ID_LEN) == 0);
   CU_ASSERT(NGHTTP2_PROTO_VERSION_ID_LEN == outlen);
 
-  out = NULL;
+  out = nullptr;
   outlen = 0;
 
   // Check the case where id is correct but length is invalid and too
@@ -233,7 +233,7 @@ void test_util_select_h2(void) {
       memcmp(NGHTTP2_PROTO_VERSION_ID, out, NGHTTP2_PROTO_VERSION_ID_LEN) == 0);
   CU_ASSERT(NGHTTP2_PROTO_VERSION_ID_LEN == outlen);
 
-  out = NULL;
+  out = nullptr;
   outlen = 0;
 
   // Check the case that last entry's length is invalid and too long.
@@ -540,10 +540,13 @@ void test_util_make_http_hostport(void) {
 }
 
 void test_util_make_hostport(void) {
+  std::array<char, util::max_hostport> hostport_buf;
   CU_ASSERT("localhost:80" ==
-            util::make_hostport(StringRef::from_lit("localhost"), 80));
-  CU_ASSERT("[::1]:443" ==
-            util::make_hostport(StringRef::from_lit("::1"), 443));
+            util::make_hostport(std::begin(hostport_buf),
+                                StringRef::from_lit("localhost"), 80));
+  CU_ASSERT("[::1]:443" == util::make_hostport(std::begin(hostport_buf),
+                                               StringRef::from_lit("::1"),
+                                               443));
 
   BlockAllocator balloc(4096, 4096);
   CU_ASSERT("localhost:80" ==
@@ -626,6 +629,70 @@ void test_util_extract_host(void) {
   CU_ASSERT(util::extract_host(StringRef::from_lit("[::1")).empty());
   CU_ASSERT(util::extract_host(StringRef::from_lit("[::1]0")).empty());
   CU_ASSERT(util::extract_host(StringRef{}).empty());
+}
+
+void test_util_split_hostport(void) {
+  CU_ASSERT(std::make_pair(StringRef::from_lit("foo"), StringRef{}) ==
+            util::split_hostport(StringRef::from_lit("foo")));
+  CU_ASSERT(
+      std::make_pair(StringRef::from_lit("foo"), StringRef::from_lit("80")) ==
+      util::split_hostport(StringRef::from_lit("foo:80")));
+  CU_ASSERT(
+      std::make_pair(StringRef::from_lit("::1"), StringRef::from_lit("80")) ==
+      util::split_hostport(StringRef::from_lit("[::1]:80")));
+  CU_ASSERT(std::make_pair(StringRef::from_lit("::1"), StringRef{}) ==
+            util::split_hostport(StringRef::from_lit("[::1]")));
+
+  CU_ASSERT(std::make_pair(StringRef{}, StringRef{}) ==
+            util::split_hostport(StringRef{}));
+  CU_ASSERT(std::make_pair(StringRef{}, StringRef{}) ==
+            util::split_hostport(StringRef::from_lit("[::1]:")));
+  CU_ASSERT(std::make_pair(StringRef{}, StringRef{}) ==
+            util::split_hostport(StringRef::from_lit("foo:")));
+  CU_ASSERT(std::make_pair(StringRef{}, StringRef{}) ==
+            util::split_hostport(StringRef::from_lit("[::1:")));
+  CU_ASSERT(std::make_pair(StringRef{}, StringRef{}) ==
+            util::split_hostport(StringRef::from_lit("[::1]80")));
+}
+
+void test_util_split_str(void) {
+  CU_ASSERT(std::vector<StringRef>{StringRef::from_lit("")} ==
+            util::split_str(StringRef::from_lit(""), ','));
+  CU_ASSERT(std::vector<StringRef>{StringRef::from_lit("alpha")} ==
+            util::split_str(StringRef::from_lit("alpha"), ','));
+  CU_ASSERT((std::vector<StringRef>{StringRef::from_lit("alpha"),
+                                    StringRef::from_lit("")}) ==
+            util::split_str(StringRef::from_lit("alpha,"), ','));
+  CU_ASSERT((std::vector<StringRef>{StringRef::from_lit("alpha"),
+                                    StringRef::from_lit("bravo")}) ==
+            util::split_str(StringRef::from_lit("alpha,bravo"), ','));
+  CU_ASSERT((std::vector<StringRef>{StringRef::from_lit("alpha"),
+                                    StringRef::from_lit("bravo"),
+                                    StringRef::from_lit("charlie")}) ==
+            util::split_str(StringRef::from_lit("alpha,bravo,charlie"), ','));
+  CU_ASSERT(
+      (std::vector<StringRef>{StringRef::from_lit("alpha"),
+                              StringRef::from_lit("bravo"),
+                              StringRef::from_lit("charlie")}) ==
+      util::split_str(StringRef::from_lit("alpha,bravo,charlie"), ',', 0));
+  CU_ASSERT(std::vector<StringRef>{StringRef::from_lit("")} ==
+            util::split_str(StringRef::from_lit(""), ',', 1));
+  CU_ASSERT(std::vector<StringRef>{StringRef::from_lit("")} ==
+            util::split_str(StringRef::from_lit(""), ',', 2));
+  CU_ASSERT(
+      (std::vector<StringRef>{StringRef::from_lit("alpha"),
+                              StringRef::from_lit("bravo,charlie")}) ==
+      util::split_str(StringRef::from_lit("alpha,bravo,charlie"), ',', 2));
+  CU_ASSERT(std::vector<StringRef>{StringRef::from_lit("alpha")} ==
+            util::split_str(StringRef::from_lit("alpha"), ',', 2));
+  CU_ASSERT((std::vector<StringRef>{StringRef::from_lit("alpha"),
+                                    StringRef::from_lit("")}) ==
+            util::split_str(StringRef::from_lit("alpha,"), ',', 2));
+  CU_ASSERT(std::vector<StringRef>{StringRef::from_lit("alpha")} ==
+            util::split_str(StringRef::from_lit("alpha"), ',', 0));
+  CU_ASSERT(
+      std::vector<StringRef>{StringRef::from_lit("alpha,bravo,charlie")} ==
+      util::split_str(StringRef::from_lit("alpha,bravo,charlie"), ',', 1));
 }
 
 } // namespace shrpx

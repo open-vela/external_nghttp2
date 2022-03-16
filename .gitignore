@@ -8,10 +8,9 @@
 *.o
 *.pyc
 .deps/
-.depend
 .libs/
 INSTALL
-Make.dep
+Makefile
 Makefile.in
 autom4te.cache/
 compile

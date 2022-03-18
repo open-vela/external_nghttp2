@@ -206,13 +206,13 @@ Http2Session::Http2Session(struct ev_loop *loop, SSL_CTX *ssl_ctx,
   on_read_ = &Http2Session::read_noop;
   on_write_ = &Http2Session::write_noop;
 
-  // We will reuse this many times, so use repeat timeout value.  The
+  // We will resuse this many times, so use repeat timeout value.  The
   // timeout value is set later.
   ev_timer_init(&connchk_timer_, connchk_timeout_cb, 0., 0.);
 
   connchk_timer_.data = this;
 
-  // SETTINGS ACK timeout is 10 seconds for now.  We will reuse this
+  // SETTINGS ACK timeout is 10 seconds for now.  We will resuse this
   // many times, so use repeat timeout value.
   ev_timer_init(&settings_timer_, settings_timeout_cb, 0., 0.);
 
@@ -1875,7 +1875,7 @@ void Http2Session::start_checking_connection() {
   SSLOG(INFO, this) << "Start checking connection";
   // If connection is down, we may get error when writing data.  Issue
   // ping frame to see whether connection is alive.
-  nghttp2_submit_ping(session_, NGHTTP2_FLAG_NONE, nullptr);
+  nghttp2_submit_ping(session_, NGHTTP2_FLAG_NONE, NULL);
 
   // set ping timeout and start timer again
   reset_connection_check_timer(CONNCHK_PING_TIMEOUT);
@@ -2378,10 +2378,6 @@ void Http2Session::check_retire() {
   }
 
   ev_prepare_stop(conn_.loop, &prep_);
-
-  if (!session_) {
-    return;
-  }
 
   auto last_stream_id = nghttp2_session_get_last_proc_stream_id(session_);
   nghttp2_submit_goaway(session_, NGHTTP2_FLAG_NONE, last_stream_id,

@@ -20,7 +20,7 @@
 # LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-SUBDIRS = lib third-party src bpf examples python tests integration-tests \
+SUBDIRS = lib third-party src examples python tests integration-tests \
 	doc contrib script
 
 # Now with python setuptools, make uninstall will leave many files we
@@ -37,6 +37,7 @@ EXTRA_DIST = nghttpx.conf.sample proxy.pac.sample android-config android-make \
 	cmakeconfig.h.in \
 	CMakeLists.txt \
 	CMakeOptions.txt \
+	cmake/FindSpdylay.cmake \
 	cmake/ExtractValidFlags.cmake \
 	cmake/FindJemalloc.cmake \
 	cmake/FindLibev.cmake \
@@ -45,21 +46,16 @@ EXTRA_DIST = nghttpx.conf.sample proxy.pac.sample android-config android-make \
 	cmake/FindCython.cmake \
 	cmake/FindLibevent.cmake \
 	cmake/FindJansson.cmake \
-	cmake/FindLibcares.cmake \
-	cmake/FindSystemd.cmake \
-	cmake/FindLibbpf.cmake \
-	cmake/FindLibnghttp3.cmake \
-	cmake/FindLibngtcp2.cmake \
-	cmake/FindLibngtcp2_crypto_openssl.cmake
+	cmake/FindLibcares.cmake
 
 .PHONY: clang-format
 
 # Format source files using clang-format.  Don't format source files
-# under third-party directory since we are not responsible for their
+# under third-party directory since we are not responsible for thier
 # coding style.
 clang-format:
 	CLANGFORMAT=`git config --get clangformat.binary`; \
 	test -z $${CLANGFORMAT} && CLANGFORMAT="clang-format"; \
 	$${CLANGFORMAT} -i lib/*.{c,h} lib/includes/nghttp2/*.h \
 	src/*.{c,cc,h} src/includes/nghttp2/*.h examples/*.{c,cc} \
-	tests/*.{c,h} bpf/*.c
+	tests/*.{c,h}

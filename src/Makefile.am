@@ -35,28 +35,19 @@ AM_CFLAGS = $(WARNCFLAGS)
 AM_CXXFLAGS = $(WARNCXXFLAGS) $(CXX1XCXXFLAGS)
 AM_CPPFLAGS = \
 	-DPKGDATADIR='"$(pkgdatadir)"' \
-	-DPKGLIBDIR='"$(pkglibdir)"' \
 	-I$(top_srcdir)/lib/includes \
 	-I$(top_builddir)/lib/includes \
 	-I$(top_srcdir)/lib \
 	-I$(top_srcdir)/src/includes \
 	-I$(top_srcdir)/third-party \
 	-I$(top_srcdir)/third-party/llhttp/include \
-	@JEMALLOC_CFLAGS@ \
 	@LIBXML2_CFLAGS@ \
 	@LIBEV_CFLAGS@ \
-	@LIBNGHTTP3_CFLAGS@ \
-	@LIBNGTCP2_CRYPTO_OPENSSL_CFLAGS@ \
-	@LIBNGTCP2_CRYPTO_BORINGSSL_CFLAGS@ \
-	@LIBNGTCP2_CFLAGS@ \
 	@OPENSSL_CFLAGS@ \
 	@LIBCARES_CFLAGS@ \
 	@JANSSON_CFLAGS@ \
-	@LIBBPF_CFLAGS@ \
 	@ZLIB_CFLAGS@ \
-	@EXTRA_DEFS@ \
 	@DEFS@
-AM_LDFLAGS = @LIBTOOL_LDFLAGS@
 
 LDADD = $(top_builddir)/lib/libnghttp2.la \
 	$(top_builddir)/third-party/liburl-parser.la \
@@ -64,15 +55,10 @@ LDADD = $(top_builddir)/lib/libnghttp2.la \
 	@JEMALLOC_LIBS@ \
 	@LIBXML2_LIBS@ \
 	@LIBEV_LIBS@ \
-	@LIBNGHTTP3_LIBS@ \
-	@LIBNGTCP2_CRYPTO_OPENSSL_LIBS@ \
-	@LIBNGTCP2_CRYPTO_BORINGSSL_LIBS@ \
-	@LIBNGTCP2_LIBS@ \
 	@OPENSSL_LIBS@ \
 	@LIBCARES_LIBS@ \
 	@SYSTEMD_LIBS@ \
 	@JANSSON_LIBS@ \
-	@LIBBPF_LIBS@ \
 	@ZLIB_LIBS@ \
 	@APPLDFLAGS@
 
@@ -110,13 +96,6 @@ h2load_SOURCES = util.cc util.h \
 	h2load_session.h \
 	h2load_http2_session.cc h2load_http2_session.h \
 	h2load_http1_session.cc h2load_http1_session.h
-
-if ENABLE_HTTP3
-h2load_SOURCES += \
-	h2load_http3_session.cc h2load_http3_session.h \
-	h2load_quic.cc h2load_quic.h \
-	quic.cc quic.h
-endif # ENABLE_HTTP3
 
 NGHTTPX_SRCS = \
 	util.cc util.h http2.cc http2.h timegm.c timegm.h base64.h \
@@ -158,7 +137,6 @@ NGHTTPX_SRCS = \
 	shrpx_api_downstream_connection.cc shrpx_api_downstream_connection.h \
 	shrpx_health_monitor_downstream_connection.cc \
 	shrpx_health_monitor_downstream_connection.h \
-	shrpx_null_downstream_connection.cc shrpx_null_downstream_connection.h \
 	shrpx_exec.cc shrpx_exec.h \
 	shrpx_dns_resolver.cc shrpx_dns_resolver.h \
 	shrpx_dual_dns_resolver.cc shrpx_dual_dns_resolver.h \
@@ -174,16 +152,6 @@ NGHTTPX_SRCS += \
 	shrpx_mruby_module_request.cc shrpx_mruby_module_request.h \
 	shrpx_mruby_module_response.cc shrpx_mruby_module_response.h
 endif # HAVE_MRUBY
-
-if ENABLE_HTTP3
-NGHTTPX_SRCS += \
-	shrpx_quic.cc shrpx_quic.h \
-	shrpx_quic_listener.cc shrpx_quic_listener.h \
-	shrpx_quic_connection_handler.cc shrpx_quic_connection_handler.h \
-	shrpx_http3_upstream.cc shrpx_http3_upstream.h \
-	http3.cc http3.h \
-	quic.cc quic.h
-endif # ENABLE_HTTP3
 
 noinst_LIBRARIES = libnghttpx.a
 libnghttpx_a_SOURCES = ${NGHTTPX_SRCS}
@@ -294,7 +262,7 @@ libnghttp2_asio_la_SOURCES = \
 	asio_client_tls_context.cc asio_client_tls_context.h
 
 libnghttp2_asio_la_CPPFLAGS = ${AM_CPPFLAGS} ${BOOST_CPPFLAGS}
-libnghttp2_asio_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined -version-info 1:0:0
+libnghttp2_asio_la_LDFLAGS = -no-undefined -version-info 1:0:0
 libnghttp2_asio_la_LIBADD = \
 	$(top_builddir)/lib/libnghttp2.la \
 	$(top_builddir)/third-party/liburl-parser.la \

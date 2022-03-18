@@ -24,8 +24,6 @@
  */
 #include "shrpx_http_downstream_connection.h"
 
-#include <openssl/rand.h>
-
 #include "shrpx_client_handler.h"
 #include "shrpx_upstream.h"
 #include "shrpx_downstream.h"
@@ -523,9 +521,7 @@ int HttpDownstreamConnection::push_request_headers() {
       (xffconf.strip_incoming ? http2::HDOP_STRIP_X_FORWARDED_FOR : 0) |
       (xfpconf.strip_incoming ? http2::HDOP_STRIP_X_FORWARDED_PROTO : 0) |
       (earlydataconf.strip_incoming ? http2::HDOP_STRIP_EARLY_DATA : 0) |
-      ((req.http_major == 3 || req.http_major == 2)
-           ? http2::HDOP_STRIP_SEC_WEBSOCKET_KEY
-           : 0);
+      (req.http_major == 2 ? http2::HDOP_STRIP_SEC_WEBSOCKET_KEY : 0);
 
   http2::build_http1_headers_from_headers(buf, req.fs.headers(), build_flags);
 
@@ -545,11 +541,10 @@ int HttpDownstreamConnection::push_request_headers() {
   }
 
   if (req.connect_proto == ConnectProto::WEBSOCKET) {
-    if (req.http_major == 3 || req.http_major == 2) {
+    if (req.http_major == 2) {
       std::array<uint8_t, 16> nonce;
-      if (RAND_bytes(nonce.data(), nonce.size()) != 1) {
-        return -1;
-      }
+      util::random_bytes(std::begin(nonce), std::end(nonce),
+                         worker_->get_randgen());
       auto iov = make_byte_ref(balloc, base64::encode_length(nonce.size()) + 1);
       auto p = base64::encode(std::begin(nonce), std::end(nonce), iov.base);
       *p = '\0';
@@ -896,7 +891,8 @@ int htp_msg_begincb(llhttp_t *htp) {
   auto downstream = static_cast<Downstream *>(htp->data);
 
   if (downstream->get_response_state() != DownstreamState::INITIAL) {
-    return -1;
+    llhttp_set_error_reason(htp, "HTTP message started when it shouldn't");
+    return HPE_USER;
   }
 
   return 0;
@@ -1218,18 +1214,6 @@ int HttpDownstreamConnection::read_clear() {
     }
 
     if (nread < 0) {
-      if (nread == SHRPX_ERR_EOF && !downstream_->get_upgraded()) {
-        auto htperr = llhttp_finish(&response_htp_);
-        if (htperr != HPE_OK) {
-          if (LOG_ENABLED(INFO)) {
-            DCLOG(INFO, this) << "HTTP response ended prematurely: "
-                              << llhttp_errno_name(htperr);
-          }
-
-          return -1;
-        }
-      }
-
       return nread;
     }
 
@@ -1349,18 +1333,6 @@ int HttpDownstreamConnection::read_tls() {
     }
 
     if (nread < 0) {
-      if (nread == SHRPX_ERR_EOF && !downstream_->get_upgraded()) {
-        auto htperr = llhttp_finish(&response_htp_);
-        if (htperr != HPE_OK) {
-          if (LOG_ENABLED(INFO)) {
-            DCLOG(INFO, this) << "HTTP response ended prematurely: "
-                              << llhttp_errno_name(htperr);
-          }
-
-          return -1;
-        }
-      }
-
       return nread;
     }
 

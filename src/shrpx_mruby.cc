@@ -75,7 +75,6 @@ int MRubyContext::run_app(Downstream *downstream, int phase) {
     break;
   default:
     assert(0);
-    abort();
   }
 
   auto res = mrb_funcall(mrb_, app_, method, 1, env_);
@@ -118,7 +117,7 @@ namespace {
 mrb_value instantiate_app(mrb_state *mrb, RProc *proc) {
   mrb->ud = nullptr;
 
-  auto res = mrb_top_run(mrb, proc, mrb_top_self(mrb), 0);
+  auto res = mrb_run(mrb, proc, mrb_top_self(mrb));
 
   if (mrb->exc) {
     auto exc = mrb_obj_value(mrb->exc);

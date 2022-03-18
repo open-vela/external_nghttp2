@@ -2954,7 +2954,7 @@ void test_nghttp2_session_on_request_headers_received(void) {
   session->local_settings.max_concurrent_streams =
       NGHTTP2_DEFAULT_MAX_CONCURRENT_STREAMS;
 
-  /* Stream ID less than or equal to the previously received request
+  /* Stream ID less than or equal to the previouly received request
      HEADERS is just ignored due to race condition */
   nghttp2_frame_headers_init(&frame.headers,
                              NGHTTP2_FLAG_END_HEADERS | NGHTTP2_FLAG_PRIORITY,
@@ -3380,11 +3380,6 @@ void test_nghttp2_session_on_settings_received(void) {
   nghttp2_nv nv = MAKE_NV(":authority", "example.org");
   nghttp2_mem *mem;
   nghttp2_option *option;
-  uint8_t data[2048];
-  nghttp2_frame_hd hd;
-  int rv;
-  ssize_t nread;
-  nghttp2_stream *stream;
 
   mem = nghttp2_mem_default();
 
@@ -3593,64 +3588,6 @@ void test_nghttp2_session_on_settings_received(void) {
   CU_ASSERT(NGHTTP2_GOAWAY == item->frame.hd.type);
 
   nghttp2_session_del(session);
-
-  /* Should send WINDOW_UPDATE with no_auto_window_update option on if
-     the initial window size is decreased and becomes smaller than or
-     equal to the amount of data that has already received. */
-  nghttp2_option_new(&option);
-  nghttp2_option_set_no_auto_window_update(option, 1);
-
-  nghttp2_session_server_new2(&session, &callbacks, NULL, option);
-
-  iv[0].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
-  iv[0].value = 1024;
-
-  rv = nghttp2_submit_settings(session, NGHTTP2_FLAG_NONE, iv, 1);
-
-  CU_ASSERT(0 == rv);
-
-  rv = nghttp2_session_send(session);
-
-  CU_ASSERT(0 == rv);
-
-  stream = open_recv_stream(session, 1);
-
-  memset(data, 0, sizeof(data));
-  hd.length = 1024;
-  hd.type = NGHTTP2_DATA;
-  hd.flags = NGHTTP2_FLAG_NONE;
-  hd.stream_id = 1;
-  nghttp2_frame_pack_frame_hd(data, &hd);
-
-  nread =
-      nghttp2_session_mem_recv(session, data, NGHTTP2_FRAME_HDLEN + hd.length);
-
-  CU_ASSERT((ssize_t)(NGHTTP2_FRAME_HDLEN + hd.length) == nread);
-
-  rv = nghttp2_session_consume(session, 1, hd.length);
-
-  CU_ASSERT(0 == rv);
-  CU_ASSERT((int32_t)hd.length == stream->recv_window_size);
-  CU_ASSERT((int32_t)hd.length == stream->consumed_size);
-
-  nghttp2_frame_settings_init(&frame.settings, NGHTTP2_FLAG_ACK, NULL, 0);
-
-  rv = nghttp2_session_on_settings_received(session, &frame, 0);
-
-  CU_ASSERT(0 == rv);
-  CU_ASSERT(1024 == stream->local_window_size);
-  CU_ASSERT(0 == stream->recv_window_size);
-  CU_ASSERT(0 == stream->consumed_size);
-
-  item = nghttp2_session_get_next_ob_item(session);
-
-  CU_ASSERT(NULL != item);
-  CU_ASSERT(NGHTTP2_WINDOW_UPDATE == item->frame.hd.type);
-  CU_ASSERT((int32_t)hd.length ==
-            item->frame.window_update.window_size_increment);
-
-  nghttp2_session_del(session);
-  nghttp2_option_del(option);
 }
 
 void test_nghttp2_session_on_push_promise_received(void) {
@@ -4713,7 +4650,7 @@ void test_nghttp2_session_reprioritize_stream(void) {
   CU_ASSERT(10 == stream->weight);
   CU_ASSERT(&session->root == stream->dep_prev);
 
-  /* If dependency to idle stream which is not in dependency tree yet */
+  /* If depenency to idle stream which is not in depdenency tree yet */
 
   nghttp2_priority_spec_init(&pri_spec, 3, 99, 0);
 
@@ -5783,7 +5720,7 @@ void test_nghttp2_submit_settings(void) {
   nghttp2_frame_settings_free(&ack_frame.settings, mem);
 
   CU_ASSERT(16 * 1024 == session->local_settings.initial_window_size);
-  CU_ASSERT(111 == session->hd_inflater.ctx.hd_table_bufsize_max);
+  CU_ASSERT(1023 == session->hd_inflater.ctx.hd_table_bufsize_max);
   CU_ASSERT(111 == session->hd_inflater.min_hd_table_bufsize_max);
   CU_ASSERT(50 == session->local_settings.max_concurrent_streams);
 
@@ -6457,107 +6394,6 @@ void test_nghttp2_submit_origin(void) {
   nghttp2_frame_unpack_frame_hd(&frame.hd, data);
 
   CU_ASSERT(NGHTTP2_ORIGIN == frame.hd.type);
-
-  nghttp2_session_del(session);
-}
-
-void test_nghttp2_submit_rst_stream(void) {
-  nghttp2_session *session;
-  nghttp2_session_callbacks callbacks;
-  nghttp2_outbound_item *item;
-  int rv;
-  int32_t stream_id;
-
-  memset(&callbacks, 0, sizeof(nghttp2_session_callbacks));
-
-  /* Sending RST_STREAM to idle stream (local) is ignored */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-
-  rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE, 1,
-                                 NGHTTP2_NO_ERROR);
-
-  CU_ASSERT(0 == rv);
-
-  item = nghttp2_outbound_queue_top(&session->ob_reg);
-
-  CU_ASSERT(NULL == item);
-
-  nghttp2_session_del(session);
-
-  /* Sending RST_STREAM to idle stream (remote) is ignored */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-
-  rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE, 2,
-                                 NGHTTP2_NO_ERROR);
-
-  CU_ASSERT(0 == rv);
-
-  item = nghttp2_outbound_queue_top(&session->ob_reg);
-
-  CU_ASSERT(NULL == item);
-
-  nghttp2_session_del(session);
-
-  /* Sending RST_STREAM to non-idle stream (local) */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-
-  open_sent_stream(session, 1);
-
-  rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE, 1,
-                                 NGHTTP2_NO_ERROR);
-
-  CU_ASSERT(0 == rv);
-
-  item = nghttp2_outbound_queue_top(&session->ob_reg);
-
-  CU_ASSERT(NULL != item);
-  CU_ASSERT(NGHTTP2_RST_STREAM == item->frame.hd.type);
-  CU_ASSERT(1 == item->frame.hd.stream_id);
-
-  nghttp2_session_del(session);
-
-  /* Sending RST_STREAM to non-idle stream (remote) */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-
-  open_recv_stream(session, 2);
-
-  rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE, 2,
-                                 NGHTTP2_NO_ERROR);
-
-  CU_ASSERT(0 == rv);
-
-  item = nghttp2_outbound_queue_top(&session->ob_reg);
-
-  CU_ASSERT(NULL != item);
-  CU_ASSERT(NGHTTP2_RST_STREAM == item->frame.hd.type);
-  CU_ASSERT(2 == item->frame.hd.stream_id);
-
-  nghttp2_session_del(session);
-
-  /* Sending RST_STREAM to pending stream */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-
-  stream_id =
-      nghttp2_submit_request(session, NULL, reqnv, ARRLEN(reqnv), NULL, NULL);
-
-  CU_ASSERT(stream_id > 0);
-
-  item = nghttp2_outbound_queue_top(&session->ob_syn);
-
-  CU_ASSERT(NULL != item);
-  CU_ASSERT(NGHTTP2_HEADERS == item->frame.hd.type);
-  CU_ASSERT(0 == item->aux_data.headers.canceled);
-
-  rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE, stream_id,
-                                 NGHTTP2_NO_ERROR);
-
-  CU_ASSERT(0 == rv);
-
-  item = nghttp2_outbound_queue_top(&session->ob_syn);
-
-  CU_ASSERT(NULL != item);
-  CU_ASSERT(NGHTTP2_HEADERS == item->frame.hd.type);
-  CU_ASSERT(1 == item->aux_data.headers.canceled);
 
   nghttp2_session_del(session);
 }
@@ -9133,7 +8969,7 @@ void test_nghttp2_session_stream_get_state(void) {
   CU_ASSERT(NGHTTP2_STREAM_STATE_RESERVED_LOCAL ==
             nghttp2_stream_get_state(stream));
 
-  /* Send response to push stream 2 with END_STREAM set */
+  /* Send resposne to push stream 2 with END_STREAM set */
   nghttp2_submit_response(session, 2, resnv, ARRLEN(resnv), NULL);
 
   rv = nghttp2_session_send(session);
@@ -10305,7 +10141,7 @@ void test_nghttp2_session_create_idle_stream(void) {
 
   /* If pri_spec->stream_id does not exist, and it is idle stream, it
      is created too */
-  nghttp2_priority_spec_init(&pri_spec, 10, 109, 0);
+  nghttp2_priority_spec_init(&pri_spec, 8, 109, 0);
 
   rv = nghttp2_session_create_idle_stream(session, 8, &pri_spec);
 
@@ -10338,7 +10174,7 @@ void test_nghttp2_session_create_idle_stream(void) {
   CU_ASSERT(NGHTTP2_ERR_INVALID_ARGUMENT == rv);
 
   /* It is an error to create non-idle stream */
-  session->last_sent_stream_id = 20;
+  session->next_stream_id = 20;
   pri_spec.stream_id = 2;
 
   rv = nghttp2_session_create_idle_stream(session, 18, &pri_spec);
@@ -10632,62 +10468,6 @@ void test_nghttp2_session_set_local_window_size(void) {
   CU_ASSERT(0 == nghttp2_session_send(session));
 
   nghttp2_session_del(session);
-
-  /* Make sure that nghttp2_session_set_local_window_size submits
-     WINDOW_UPDATE if necessary to increase stream-level window. */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-  stream = open_sent_stream(session, 1);
-  stream->recv_window_size = NGHTTP2_INITIAL_WINDOW_SIZE;
-
-  CU_ASSERT(0 == nghttp2_session_set_local_window_size(
-                     session, NGHTTP2_FLAG_NONE, 1, 0));
-  CU_ASSERT(0 == stream->recv_window_size);
-  CU_ASSERT(0 == nghttp2_session_get_stream_local_window_size(session, 1));
-  /* This should submit WINDOW_UPDATE frame because stream-level
-     receiving window is now full. */
-  CU_ASSERT(0 ==
-            nghttp2_session_set_local_window_size(session, NGHTTP2_FLAG_NONE, 1,
-                                                  NGHTTP2_INITIAL_WINDOW_SIZE));
-  CU_ASSERT(0 == stream->recv_window_size);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            nghttp2_session_get_stream_local_window_size(session, 1));
-
-  item = nghttp2_session_get_next_ob_item(session);
-
-  CU_ASSERT(NGHTTP2_WINDOW_UPDATE == item->frame.hd.type);
-  CU_ASSERT(1 == item->frame.hd.stream_id);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            item->frame.window_update.window_size_increment);
-
-  nghttp2_session_del(session);
-
-  /* Make sure that nghttp2_session_set_local_window_size submits
-     WINDOW_UPDATE if necessary to increase connection-level
-     window. */
-  nghttp2_session_client_new(&session, &callbacks, NULL);
-  session->recv_window_size = NGHTTP2_INITIAL_WINDOW_SIZE;
-
-  CU_ASSERT(0 == nghttp2_session_set_local_window_size(
-                     session, NGHTTP2_FLAG_NONE, 0, 0));
-  CU_ASSERT(0 == session->recv_window_size);
-  CU_ASSERT(0 == nghttp2_session_get_local_window_size(session));
-  /* This should submit WINDOW_UPDATE frame because connection-level
-     receiving window is now full. */
-  CU_ASSERT(0 ==
-            nghttp2_session_set_local_window_size(session, NGHTTP2_FLAG_NONE, 0,
-                                                  NGHTTP2_INITIAL_WINDOW_SIZE));
-  CU_ASSERT(0 == session->recv_window_size);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            nghttp2_session_get_local_window_size(session));
-
-  item = nghttp2_session_get_next_ob_item(session);
-
-  CU_ASSERT(NGHTTP2_WINDOW_UPDATE == item->frame.hd.type);
-  CU_ASSERT(0 == item->frame.hd.stream_id);
-  CU_ASSERT(NGHTTP2_INITIAL_WINDOW_SIZE ==
-            item->frame.window_update.window_size_increment);
-
-  nghttp2_session_del(session);
 }
 
 void test_nghttp2_session_cancel_from_before_frame_send(void) {
@@ -10775,67 +10555,6 @@ void test_nghttp2_session_cancel_from_before_frame_send(void) {
 
   CU_ASSERT(NULL == stream);
 
-  nghttp2_session_del(session);
-}
-
-void test_nghttp2_session_too_many_settings(void) {
-  nghttp2_session *session;
-  nghttp2_option *option;
-  nghttp2_session_callbacks callbacks;
-  nghttp2_frame frame;
-  nghttp2_bufs bufs;
-  nghttp2_buf *buf;
-  ssize_t rv;
-  my_user_data ud;
-  nghttp2_settings_entry iv[3];
-  nghttp2_mem *mem;
-  nghttp2_outbound_item *item;
-
-  mem = nghttp2_mem_default();
-  frame_pack_bufs_init(&bufs);
-
-  memset(&callbacks, 0, sizeof(nghttp2_session_callbacks));
-  callbacks.on_frame_recv_callback = on_frame_recv_callback;
-  callbacks.send_callback = null_send_callback;
-
-  nghttp2_option_new(&option);
-  nghttp2_option_set_max_settings(option, 1);
-
-  nghttp2_session_client_new2(&session, &callbacks, &ud, option);
-
-  CU_ASSERT(1 == session->max_settings);
-
-  nghttp2_option_del(option);
-
-  iv[0].settings_id = NGHTTP2_SETTINGS_HEADER_TABLE_SIZE;
-  iv[0].value = 3000;
-
-  iv[1].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
-  iv[1].value = 16384;
-
-  nghttp2_frame_settings_init(&frame.settings, NGHTTP2_FLAG_NONE, dup_iv(iv, 2),
-                              2);
-
-  rv = nghttp2_frame_pack_settings(&bufs, &frame.settings);
-
-  CU_ASSERT(0 == rv);
-  CU_ASSERT(nghttp2_bufs_len(&bufs) > 0);
-
-  nghttp2_frame_settings_free(&frame.settings, mem);
-
-  buf = &bufs.head->buf;
-  assert(nghttp2_bufs_len(&bufs) == nghttp2_buf_len(buf));
-
-  ud.frame_recv_cb_called = 0;
-
-  rv = nghttp2_session_mem_recv(session, buf->pos, nghttp2_buf_len(buf));
-  CU_ASSERT((ssize_t)nghttp2_buf_len(buf) == rv);
-
-  item = nghttp2_session_get_next_ob_item(session);
-  CU_ASSERT(NGHTTP2_GOAWAY == item->frame.hd.type);
-
-  nghttp2_bufs_reset(&bufs);
-  nghttp2_bufs_free(&bufs);
   nghttp2_session_del(session);
 }
 

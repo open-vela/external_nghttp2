@@ -71,7 +71,7 @@ pthread_once_t lckey_once = PTHREAD_ONCE_INIT;
 } // namespace
 
 namespace {
-void make_key() { pthread_key_create(&lckey, nullptr); }
+void make_key() { pthread_key_create(&lckey, NULL); }
 } // namespace
 
 LogConfig *log_config() {

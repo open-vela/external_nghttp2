@@ -916,7 +916,7 @@ void test_http2_rewrite_clean_path(void) {
   CU_ASSERT("/delta%3A" == http2::rewrite_clean_path(
                                balloc, StringRef::from_lit("/delta%3a")));
 
-  // path component is normalized before matching
+  // path component is normalized before mathcing
   CU_ASSERT(
       "/alpha/bravo/" ==
       http2::rewrite_clean_path(

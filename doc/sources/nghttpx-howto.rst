@@ -14,8 +14,8 @@ Default mode
 
 If nghttpx is invoked without :option:`--http2-proxy`, it operates in
 default mode.  In this mode, it works as reverse proxy (gateway) for
-HTTP/3, HTTP/2 and HTTP/1 clients to backend servers.  This is also
-known as "HTTP/2 router".
+both HTTP/2 and HTTP/1 clients to backend servers.  This is also known
+as "HTTP/2 router".
 
 By default, frontend connection is encrypted using SSL/TLS.  So
 server's private key and certificate must be supplied to the command
@@ -27,9 +27,6 @@ in :option:`--frontend` option.  HTTP/2 and HTTP/1 are available on
 the frontend, and an HTTP/1 connection can be upgraded to HTTP/2 using
 HTTP Upgrade.  Starting HTTP/2 connection by sending HTTP/2 connection
 preface is also supported.
-
-In order to receive HTTP/3 traffic, use ``quic`` parameter in
-:option:`--frontend` option (.e.g, ``--frontend='*,443;quic'``)
 
 nghttpx can listen on multiple frontend addresses.  This is achieved
 by using multiple :option:`--frontend` options.  For each frontend
@@ -231,7 +228,7 @@ process.  It will do fork and execute new executable, using same
 command-line arguments and environment variables.
 
 As of nghttpx version 1.20.0, that is all you have to do.  The new
-main process sends QUIT signal to the original process, when it is
+master process sends QUIT signal to the original process, when it is
 ready to serve requests, to shut it down gracefully.
 
 For earlier versions of nghttpx, you have to do one more thing.  At
@@ -242,7 +239,7 @@ current process will exit.  At this point, only new nghttpx process
 exists and serves incoming requests.
 
 If you want to just reload configuration file without executing new
-binary, send SIGHUP to nghttpx main process.
+binary, send SIGHUP to nghttpx master process.
 
 Re-opening log files
 --------------------
@@ -404,9 +401,6 @@ like so:
 
    frontend=*,443;proxyproto
 
-nghttpx supports both PROXY protocol v1 and v2.  AF_UNIX in PROXY
-protocol version 2 is ignored.
-
 Session affinity
 ----------------
 
@@ -448,10 +442,10 @@ nghttpx server accepts any of the identity and secret pairs in the
 file.  The default cipher suite list does not contain PSK cipher
 suites.  In order to use PSK, PSK cipher suite must be enabled by
 using :option:`--ciphers` option.  The desired PSK cipher suite may be
-listed in `HTTP/2 cipher block list
+listed in `HTTP/2 cipher black list
 <https://tools.ietf.org/html/rfc7540#appendix-A>`_.  In order to use
-such PSK cipher suite with HTTP/2, disable HTTP/2 cipher block list by
-using :option:`--no-http2-cipher-block-list` option.  But you should
+such PSK cipher suite with HTTP/2, disable HTTP/2 cipher black list by
+using :option:`--no-http2-cipher-black-list` option.  But you should
 understand its implications.
 
 At the time of writing, even if only PSK cipher suites are specified
@@ -471,10 +465,10 @@ used, like so:
 The default cipher suite list does not contain PSK cipher suites.  In
 order to use PSK, PSK cipher suite must be enabled by using
 :option:`--client-ciphers` option.  The desired PSK cipher suite may
-be listed in `HTTP/2 cipher block list
+be listed in `HTTP/2 cipher black list
 <https://tools.ietf.org/html/rfc7540#appendix-A>`_.  In order to use
-such PSK cipher suite with HTTP/2, disable HTTP/2 cipher block list by
-using :option:`--client-no-http2-cipher-block-list` option.  But you
+such PSK cipher suite with HTTP/2, disable HTTP/2 cipher black list by
+using :option:`--client-no-http2-cipher-black-list` option.  But you
 should understand its implications.
 
 TLSv1.3
@@ -512,60 +506,6 @@ Bootstrapping WebSockets with HTTP/2 for both frontend and backend
 connections.  This feature is enabled by default and no configuration
 is required.
 
-WebSockets over HTTP/3 is also supported.
-
-HTTP/3
-------
-
-nghttpx supports HTTP/3 if it is built with HTTP/3 support enabled.
-HTTP/3 support is experimental.
-
-In order to listen UDP port to receive HTTP/3 traffic,
-:option:`--frontend` option must have ``quic`` parameter:
-
-.. code-block:: text
-
-   frontend=*,443;quic
-
-The above example makes nghttpx receive HTTP/3 traffic on UDP
-port 443.
-
-nghttpx does not support HTTP/3 on backend connection.
-
-Hot swapping (SIGUSR2) or configuration reload (SIGHUP) require eBPF
-program.  Without eBPF, old worker processes keep getting HTTP/3
-traffic and do not work as intended.  The QUIC keying material to
-encrypt Connection ID must be set with
-:option:`--frontend-quic-secret-file` and must provide the existing
-keys in order to keep the existing connections alive during reload.
-
-The construction of Connection ID closely follows Block Cipher CID
-Algorithm described in `QUIC-LB draft
-<https://datatracker.ietf.org/doc/html/draft-ietf-quic-load-balancers>`_.
-A Connection ID that nghttpx generates is always 20 bytes long.  It
-uses first 2 bits as a configuration ID.  The remaining bits in the
-first byte are reserved and random.  The next 4 bytes are server ID.
-The next 4 bytes are used to route UDP datagram to a correct
-``SO_REUSEPORT`` socket.  The remaining bytes are randomly generated.
-The server ID and the next 12 bytes are encrypted with AES-ECB.  The
-key is derived from the keying materials stored in a file specified by
-:option:`--frontend-quic-secret-file`.  The first 2 bits of keying
-material in the file is used as a configuration ID.  The remaining
-bits and following 3 bytes are reserved and unused.  The next 32 bytes
-are used as an initial secret.  The remaining 32 bytes are used as a
-salt.  The encryption key is generated by `HKDF
-<https://datatracker.ietf.org/doc/html/rfc5869>`_ with SHA256 and
-these keying materials and ``connection id encryption key`` as info.
-
-In order announce that HTTP/3 endpoint is available, you should
-specify alt-svc header field.  For example, the following options send
-alt-svc header field in HTTP/1.1 and HTTP/2 response:
-
-.. code-block:: text
-
-   altsvc=h3,443,,,ma=3600
-   http2-altsvc=h3,443,,,ma=3600
-
 Migration from nghttpx v1.18.x or earlier
 -----------------------------------------
 
@@ -573,10 +513,10 @@ As of nghttpx v1.19.0, :option:`--ciphers` option only changes cipher
 list for frontend TLS connection.  In order to change cipher list for
 backend connection, use :option:`--client-ciphers` option.
 
-Similarly, :option:`--no-http2-cipher-block-list` option only disables
-HTTP/2 cipher block list for frontend connection.  In order to disable
-HTTP/2 cipher block list for backend connection, use
-:option:`--client-no-http2-cipher-block-list` option.
+Similarly, :option:`--no-http2-cipher-black-list` option only disables
+HTTP/2 cipher black list for frontend connection.  In order to disable
+HTTP/2 cipher black list for backend connection, use
+:option:`--client-no-http2-cipher-black-list` option.
 
 ``--accept-proxy-protocol`` option was deprecated.  Instead, use
 ``proxyproto`` parameter in :option:`--frontend` option to enable

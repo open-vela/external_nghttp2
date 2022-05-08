@@ -677,6 +677,7 @@ int HttpClient::initiate_connection() {
         return -1;
       }
 
+      SSL_set_fd(ssl, fd);
       SSL_set_connect_state(ssl);
 
       // If the user overrode the :authority or host header, use that
@@ -877,8 +878,6 @@ int HttpClient::connected() {
   ev_timer_stop(loop, &wt);
 
   if (ssl) {
-    SSL_set_fd(ssl, fd);
-
     readfn = &HttpClient::tls_handshake;
     writefn = &HttpClient::tls_handshake;
 

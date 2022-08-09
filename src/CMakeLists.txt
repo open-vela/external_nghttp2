@@ -235,8 +235,6 @@ if(ENABLE_HPACK_TOOLS)
   set(deflatehd_SOURCES
     deflatehd.cc
     comp_helper.c
-    util.cc
-    timegm.c
   )
   add_executable(inflatehd ${inflatehd_SOURCES})
   add_executable(deflatehd ${deflatehd_SOURCES})

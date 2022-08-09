@@ -246,10 +246,7 @@ if ENABLE_HPACK_TOOLS
 
 bin_PROGRAMS += inflatehd deflatehd
 
-HPACK_TOOLS_COMMON_SRCS = \
-	comp_helper.c comp_helper.h \
-	util.cc util.h \
-	timegm.c timegm.h
+HPACK_TOOLS_COMMON_SRCS = comp_helper.c comp_helper.h
 
 inflatehd_SOURCES = inflatehd.cc $(HPACK_TOOLS_COMMON_SRCS)
 

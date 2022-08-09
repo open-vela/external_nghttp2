@@ -2370,64 +2370,43 @@ int main(int argc, char **argv) {
       break;
     }
     switch (c) {
-    case 'n': {
-      auto n = util::parse_uint(optarg);
-      if (n == -1) {
-        std::cerr << "-n: bad option value: " << optarg << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      config.nreqs = n;
+    case 'n':
+      config.nreqs = strtoul(optarg, nullptr, 10);
       nreqs_set_manually = true;
       break;
-    }
-    case 'c': {
-      auto n = util::parse_uint(optarg);
-      if (n == -1) {
-        std::cerr << "-c: bad option value: " << optarg << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      config.nclients = n;
+    case 'c':
+      config.nclients = strtoul(optarg, nullptr, 10);
       break;
-    }
     case 'd':
       datafile = optarg;
       break;
-    case 't': {
+    case 't':
 #ifdef NOTHREADS
       std::cerr << "-t: WARNING: Threading disabled at build time, "
                 << "no threads created." << std::endl;
 #else
-      auto n = util::parse_uint(optarg);
-      if (n == -1) {
-        std::cerr << "-t: bad option value: " << optarg << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      config.nthreads = n;
+      config.nthreads = strtoul(optarg, nullptr, 10);
 #endif // NOTHREADS
       break;
-    }
-    case 'm': {
-      auto n = util::parse_uint(optarg);
-      if (n == -1) {
-        std::cerr << "-m: bad option value: " << optarg << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      config.max_concurrent_streams = n;
+    case 'm':
+      config.max_concurrent_streams = strtoul(optarg, nullptr, 10);
       break;
-    }
     case 'w':
     case 'W': {
-      auto n = util::parse_uint(optarg);
-      if (n == -1 || n > 30) {
+      errno = 0;
+      char *endptr = nullptr;
+      auto n = strtoul(optarg, &endptr, 10);
+      if (errno == 0 && *endptr == '\0' && n < 31) {
+        if (c == 'w') {
+          config.window_bits = n;
+        } else {
+          config.connection_window_bits = n;
+        }
+      } else {
         std::cerr << "-" << static_cast<char>(c)
                   << ": specify the integer in the range [0, 30], inclusive"
                   << std::endl;
         exit(EXIT_FAILURE);
-      }
-      if (c == 'w') {
-        config.window_bits = n;
-      } else {
-        config.connection_window_bits = n;
       }
       break;
     }
@@ -2491,20 +2470,14 @@ int main(int argc, char **argv) {
       }
       break;
     }
-    case 'r': {
-      auto n = util::parse_uint(optarg);
-      if (n == -1) {
-        std::cerr << "-r: bad option value: " << optarg << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      if (n == 0) {
+    case 'r':
+      config.rate = strtoul(optarg, nullptr, 10);
+      if (config.rate == 0) {
         std::cerr << "-r: the rate at which connections are made "
                   << "must be positive." << std::endl;
         exit(EXIT_FAILURE);
       }
-      config.rate = n;
       break;
-    }
     case 'T':
       config.conn_active_timeout = util::parse_duration_with_unit(optarg);
       if (!std::isfinite(config.conn_active_timeout)) {

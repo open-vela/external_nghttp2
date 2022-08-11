@@ -153,11 +153,7 @@ mrb_value env_get_tls_client_fingerprint_md(mrb_state *mrb, const EVP_MD *md) {
     return mrb_str_new_static(mrb, "", 0);
   }
 
-#if OPENSSL_3_0_0_API
-  auto x = SSL_get0_peer_certificate(ssl);
-#else  // !OPENSSL_3_0_0_API
   auto x = SSL_get_peer_certificate(ssl);
-#endif // !OPENSSL_3_0_0_API
   if (!x) {
     return mrb_str_new_static(mrb, "", 0);
   }
@@ -165,9 +161,7 @@ mrb_value env_get_tls_client_fingerprint_md(mrb_state *mrb, const EVP_MD *md) {
   // Currently the largest hash value is SHA-256, which is 32 bytes.
   std::array<uint8_t, 32> buf;
   auto slen = tls::get_x509_fingerprint(buf.data(), buf.size(), x, md);
-#if !OPENSSL_3_0_0_API
   X509_free(x);
-#endif // !OPENSSL_3_0_0_API
   if (slen == -1) {
     mrb_raise(mrb, E_RUNTIME_ERROR, "could not compute client fingerprint");
   }
@@ -205,20 +199,14 @@ mrb_value env_get_tls_client_subject_name(mrb_state *mrb, mrb_value self) {
     return mrb_str_new_static(mrb, "", 0);
   }
 
-#if OPENSSL_3_0_0_API
-  auto x = SSL_get0_peer_certificate(ssl);
-#else  // !OPENSSL_3_0_0_API
   auto x = SSL_get_peer_certificate(ssl);
-#endif // !OPENSSL_3_0_0_API
   if (!x) {
     return mrb_str_new_static(mrb, "", 0);
   }
 
   auto &balloc = downstream->get_block_allocator();
   auto name = tls::get_x509_subject_name(balloc, x);
-#if !OPENSSL_3_0_0_API
   X509_free(x);
-#endif // !OPENSSL_3_0_0_API
   return mrb_str_new(mrb, name.c_str(), name.size());
 }
 } // namespace
@@ -235,20 +223,14 @@ mrb_value env_get_tls_client_issuer_name(mrb_state *mrb, mrb_value self) {
     return mrb_str_new_static(mrb, "", 0);
   }
 
-#if OPENSSL_3_0_0_API
-  auto x = SSL_get0_peer_certificate(ssl);
-#else  // !OPENSSL_3_0_0_API
   auto x = SSL_get_peer_certificate(ssl);
-#endif // !OPENSSL_3_0_0_API
   if (!x) {
     return mrb_str_new_static(mrb, "", 0);
   }
 
   auto &balloc = downstream->get_block_allocator();
   auto name = tls::get_x509_issuer_name(balloc, x);
-#if !OPENSSL_3_0_0_API
   X509_free(x);
-#endif // !OPENSSL_3_0_0_API
   return mrb_str_new(mrb, name.c_str(), name.size());
 }
 } // namespace
@@ -265,20 +247,14 @@ mrb_value env_get_tls_client_serial(mrb_state *mrb, mrb_value self) {
     return mrb_str_new_static(mrb, "", 0);
   }
 
-#if OPENSSL_3_0_0_API
-  auto x = SSL_get0_peer_certificate(ssl);
-#else  // !OPENSSL_3_0_0_API
   auto x = SSL_get_peer_certificate(ssl);
-#endif // !OPENSSL_3_0_0_API
   if (!x) {
     return mrb_str_new_static(mrb, "", 0);
   }
 
   auto &balloc = downstream->get_block_allocator();
   auto sn = tls::get_x509_serial(balloc, x);
-#if !OPENSSL_3_0_0_API
   X509_free(x);
-#endif // !OPENSSL_3_0_0_API
   return mrb_str_new(mrb, sn.c_str(), sn.size());
 }
 } // namespace
@@ -295,23 +271,15 @@ mrb_value env_get_tls_client_not_before(mrb_state *mrb, mrb_value self) {
     return mrb_fixnum_value(0);
   }
 
-#if OPENSSL_3_0_0_API
-  auto x = SSL_get0_peer_certificate(ssl);
-#else  // !OPENSSL_3_0_0_API
   auto x = SSL_get_peer_certificate(ssl);
-#endif // !OPENSSL_3_0_0_API
   if (!x) {
     return mrb_fixnum_value(0);
   }
 
   time_t t;
   if (tls::get_x509_not_before(t, x) != 0) {
-    t = 0;
+    return mrb_fixnum_value(0);
   }
-
-#if !OPENSSL_3_0_0_API
-  X509_free(x);
-#endif // !OPENSSL_3_0_0_API
 
   return mrb_fixnum_value(t);
 }
@@ -329,23 +297,15 @@ mrb_value env_get_tls_client_not_after(mrb_state *mrb, mrb_value self) {
     return mrb_fixnum_value(0);
   }
 
-#if OPENSSL_3_0_0_API
-  auto x = SSL_get0_peer_certificate(ssl);
-#else  // !OPENSSL_3_0_0_API
   auto x = SSL_get_peer_certificate(ssl);
-#endif // !OPENSSL_3_0_0_API
   if (!x) {
     return mrb_fixnum_value(0);
   }
 
   time_t t;
   if (tls::get_x509_not_after(t, x) != 0) {
-    t = 0;
+    return mrb_fixnum_value(0);
   }
-
-#if !OPENSSL_3_0_0_API
-  X509_free(x);
-#endif // !OPENSSL_3_0_0_API
 
   return mrb_fixnum_value(t);
 }

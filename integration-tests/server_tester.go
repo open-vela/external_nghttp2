@@ -4,10 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
-	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/tatsuhiro-t/go-nghttp2"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/hpack"
+	"golang.org/x/net/websocket"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -20,11 +24,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/tatsuhiro-t/go-nghttp2"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/hpack"
-	"golang.org/x/net/websocket"
 )
 
 const (
@@ -62,41 +61,46 @@ type serverTester struct {
 	errCh         chan error
 }
 
-type options struct {
-	// args is the additional arguments to nghttpx.
-	args []string
-	// handler is the handler to handle the request.  It defaults
-	// to noopHandler.
-	handler http.HandlerFunc
-	// connectPort is the server side port where client connection
-	// is made.  It defaults to serverPort.
-	connectPort int
-	// tls, if set to true, sets up TLS frontend connection.
-	tls bool
-	// tlsConfig is the client side TLS configuration that is used
-	// when tls is true.
-	tlsConfig *tls.Config
-	// tcpData is additional data that are written to connection
-	// before TLS handshake starts.  This field is ignored if tls
-	// is false.
-	tcpData []byte
+// newServerTester creates test context for plain TCP frontend
+// connection.
+func newServerTester(args []string, t *testing.T, handler http.HandlerFunc) *serverTester {
+	return newServerTesterInternal(args, t, handler, false, serverPort, nil)
 }
 
-// newServerTester creates test context.
-func newServerTester(t *testing.T, opts options) *serverTester {
-	if opts.handler == nil {
-		opts.handler = noopHandler
-	}
-	if opts.connectPort == 0 {
-		opts.connectPort = serverPort
-	}
+func newServerTesterConnectPort(args []string, t *testing.T, handler http.HandlerFunc, port int) *serverTester {
+	return newServerTesterInternal(args, t, handler, false, port, nil)
+}
 
-	ts := httptest.NewUnstartedServer(opts.handler)
+func newServerTesterHandler(args []string, t *testing.T, handler http.Handler) *serverTester {
+	return newServerTesterInternal(args, t, handler, false, serverPort, nil)
+}
 
-	var args []string
+// newServerTester creates test context for TLS frontend connection.
+func newServerTesterTLS(args []string, t *testing.T, handler http.HandlerFunc) *serverTester {
+	return newServerTesterInternal(args, t, handler, true, serverPort, nil)
+}
+
+func newServerTesterTLSConnectPort(args []string, t *testing.T, handler http.HandlerFunc, port int) *serverTester {
+	return newServerTesterInternal(args, t, handler, true, port, nil)
+}
+
+// newServerTester creates test context for TLS frontend connection
+// with given clientConfig
+func newServerTesterTLSConfig(args []string, t *testing.T, handler http.HandlerFunc, clientConfig *tls.Config) *serverTester {
+	return newServerTesterInternal(args, t, handler, true, serverPort, clientConfig)
+}
+
+// newServerTesterInternal creates test context.  If frontendTLS is
+// true, set up TLS frontend connection.  connectPort is the server
+// side port where client connection is made.
+func newServerTesterInternal(src_args []string, t *testing.T, handler http.Handler, frontendTLS bool, connectPort int, clientConfig *tls.Config) *serverTester {
+	ts := httptest.NewUnstartedServer(handler)
+
+	args := []string{}
+
 	var backendTLS, dns, externalDNS, acceptProxyProtocol, redirectIfNotTLS, affinityCookie, alpnH1 bool
 
-	for _, k := range opts.args {
+	for _, k := range src_args {
 		switch k {
 		case "--http2-bridge":
 			backendTLS = true
@@ -130,7 +134,7 @@ func newServerTester(t *testing.T, opts options) *serverTester {
 		ts.Start()
 	}
 	scheme := "http"
-	if opts.tls {
+	if frontendTLS {
 		scheme = "https"
 		args = append(args, testDir+"/server.key", testDir+"/server.crt")
 	}
@@ -170,7 +174,7 @@ func newServerTester(t *testing.T, opts options) *serverTester {
 	}
 
 	noTLS := ";no-tls"
-	if opts.tls {
+	if frontendTLS {
 		noTLS = ""
 	}
 
@@ -182,7 +186,7 @@ func newServerTester(t *testing.T, opts options) *serverTester {
 	args = append(args, fmt.Sprintf("-f127.0.0.1,%v%v%v", serverPort, noTLS, proxyProto), b,
 		"--errorlog-file="+logDir+"/log.txt", "-LINFO")
 
-	authority := fmt.Sprintf("127.0.0.1:%v", opts.connectPort)
+	authority := fmt.Sprintf("127.0.0.1:%v", connectPort)
 
 	st := &serverTester{
 		cmd:          exec.Command(serverBin, args...),
@@ -208,20 +212,14 @@ func newServerTester(t *testing.T, opts options) *serverTester {
 	for {
 		time.Sleep(50 * time.Millisecond)
 
-		conn, err := net.Dial("tcp", authority)
-		if err == nil && opts.tls {
-			if len(opts.tcpData) > 0 {
-				if _, err := conn.Write(opts.tcpData); err != nil {
-					st.Close()
-					st.t.Fatal("Error writing TCP data")
-				}
-			}
-
+		var conn net.Conn
+		var err error
+		if frontendTLS {
 			var tlsConfig *tls.Config
-			if opts.tlsConfig == nil {
+			if clientConfig == nil {
 				tlsConfig = new(tls.Config)
 			} else {
-				tlsConfig = opts.tlsConfig.Clone()
+				tlsConfig = clientConfig
 			}
 			tlsConfig.InsecureSkipVerify = true
 			if alpnH1 {
@@ -229,16 +227,9 @@ func newServerTester(t *testing.T, opts options) *serverTester {
 			} else {
 				tlsConfig.NextProtos = []string{"h2"}
 			}
-			tlsConn := tls.Client(conn, tlsConfig)
-			err = tlsConn.Handshake()
-			if err == nil {
-				cs := tlsConn.ConnectionState()
-				if !cs.NegotiatedProtocolIsMutual {
-					st.Close()
-					st.t.Fatalf("Error negotiated next protocol is not mutual")
-				}
-				conn = tlsConn
-			}
+			conn, err = tls.Dial("tcp", authority, tlsConfig)
+		} else {
+			conn, err = net.Dial("tcp", authority)
 		}
 		if err != nil {
 			retry += 1
@@ -247,6 +238,14 @@ func newServerTester(t *testing.T, opts options) *serverTester {
 				st.t.Fatalf("Error server is not responding too long; server command-line arguments may be invalid")
 			}
 			continue
+		}
+		if frontendTLS {
+			tlsConn := conn.(*tls.Conn)
+			cs := tlsConn.ConnectionState()
+			if !cs.NegotiatedProtocolIsMutual {
+				st.Close()
+				st.t.Fatalf("Error negotiated next protocol is not mutual")
+			}
 		}
 		st.conn = conn
 		break
@@ -430,7 +429,7 @@ func (st *serverTester) http1(rp requestParam) (*serverResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -561,7 +560,7 @@ loop:
 			var status int
 			status, err = strconv.Atoi(sr.header.Get(":status"))
 			if err != nil {
-				return res, fmt.Errorf("Error parsing status code: %w", err)
+				return res, fmt.Errorf("Error parsing status code: %v", err)
 			}
 			sr.status = status
 			if f.StreamEnded() {
@@ -664,101 +663,11 @@ func cloneHeader(h http.Header) http.Header {
 }
 
 func noopHandler(w http.ResponseWriter, r *http.Request) {
-	io.ReadAll(r.Body)
+	ioutil.ReadAll(r.Body)
 }
 
 type APIResponse struct {
 	Status string                 `json:"status,omitempty"`
 	Code   int                    `json:"code,omitempty"`
 	Data   map[string]interface{} `json:"data,omitempty"`
-}
-
-type proxyProtocolV2 struct {
-	command            proxyProtocolV2Command
-	sourceAddress      net.Addr
-	destinationAddress net.Addr
-	additionalData     []byte
-}
-
-type proxyProtocolV2Command int
-
-const (
-	proxyProtocolV2CommandLocal proxyProtocolV2Command = 0x0
-	proxyProtocolV2CommandProxy proxyProtocolV2Command = 0x1
-)
-
-type proxyProtocolV2Family int
-
-const (
-	proxyProtocolV2FamilyUnspec proxyProtocolV2Family = 0x0
-	proxyProtocolV2FamilyInet   proxyProtocolV2Family = 0x1
-	proxyProtocolV2FamilyInet6  proxyProtocolV2Family = 0x2
-	proxyProtocolV2FamilyUnix   proxyProtocolV2Family = 0x3
-)
-
-type proxyProtocolV2Protocol int
-
-const (
-	proxyProtocolV2ProtocolUnspec proxyProtocolV2Protocol = 0x0
-	proxyProtocolV2ProtocolStream proxyProtocolV2Protocol = 0x1
-	proxyProtocolV2ProtocolDgram  proxyProtocolV2Protocol = 0x2
-)
-
-func writeProxyProtocolV2(w io.Writer, hdr proxyProtocolV2) {
-	w.Write([]byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A})
-	w.Write([]byte{byte(0x20 | hdr.command)})
-
-	switch srcAddr := hdr.sourceAddress.(type) {
-	case *net.TCPAddr:
-		dstAddr := hdr.destinationAddress.(*net.TCPAddr)
-		if len(srcAddr.IP) != len(dstAddr.IP) {
-			panic("len(srcAddr.IP) != len(dstAddr.IP)")
-		}
-		var fam byte
-		if len(srcAddr.IP) == 4 {
-			fam = byte(proxyProtocolV2FamilyInet << 4)
-		} else {
-			fam = byte(proxyProtocolV2FamilyInet6 << 4)
-		}
-		fam |= byte(proxyProtocolV2ProtocolStream)
-		w.Write([]byte{fam})
-		length := uint16(len(srcAddr.IP)*2 + 4 + len(hdr.additionalData))
-		binary.Write(w, binary.BigEndian, length)
-		w.Write(srcAddr.IP)
-		w.Write(dstAddr.IP)
-		binary.Write(w, binary.BigEndian, uint16(srcAddr.Port))
-		binary.Write(w, binary.BigEndian, uint16(dstAddr.Port))
-	case *net.UnixAddr:
-		dstAddr := hdr.destinationAddress.(*net.UnixAddr)
-		if len(srcAddr.Name) > 108 {
-			panic("too long Unix source address")
-		}
-		if len(dstAddr.Name) > 108 {
-			panic("too long Unix destination address")
-		}
-		fam := byte(proxyProtocolV2FamilyUnix << 4)
-		switch srcAddr.Net {
-		case "unix":
-			fam |= byte(proxyProtocolV2ProtocolStream)
-		case "unixdgram":
-			fam |= byte(proxyProtocolV2ProtocolDgram)
-		default:
-			fam |= byte(proxyProtocolV2ProtocolUnspec)
-		}
-		w.Write([]byte{fam})
-		length := uint16(216 + len(hdr.additionalData))
-		binary.Write(w, binary.BigEndian, length)
-		zeros := make([]byte, 108)
-		w.Write([]byte(srcAddr.Name))
-		w.Write(zeros[:108-len(srcAddr.Name)])
-		w.Write([]byte(dstAddr.Name))
-		w.Write(zeros[:108-len(dstAddr.Name)])
-	default:
-		fam := byte(proxyProtocolV2FamilyUnspec<<4) | byte(proxyProtocolV2ProtocolUnspec)
-		w.Write([]byte{fam})
-		length := uint16(len(hdr.additionalData))
-		binary.Write(w, binary.BigEndian, length)
-	}
-
-	w.Write(hdr.additionalData)
 }

@@ -42,6 +42,7 @@ set(APIDOCS
   nghttp2_option_set_no_recv_client_magic.rst
   nghttp2_option_set_peer_max_concurrent_streams.rst
   nghttp2_option_set_user_recv_extension_type.rst
+  nghttp2_option_set_max_settings.rst
   nghttp2_pack_settings_payload.rst
   nghttp2_priority_spec_check_default.rst
   nghttp2_priority_spec_default_init.rst
@@ -183,9 +184,9 @@ set(EXTRA_DIST
   sources/python-apiref.rst
   sources/building-android-binary.rst
   sources/contribute.rst
-  _exts/sphinxcontrib/LICENSE.rubydomain
-  _exts/sphinxcontrib/__init__.py
-  _exts/sphinxcontrib/rubydomain.py
+  _exts/rubydomain/LICENSE.rubydomain
+  _exts/rubydomain/__init__.py
+  _exts/rubydomain/rubydomain.py
   _themes/sphinx_rtd_theme/__init__.py
   _themes/sphinx_rtd_theme/breadcrumbs.html
   _themes/sphinx_rtd_theme/footer.html

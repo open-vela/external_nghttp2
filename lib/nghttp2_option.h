@@ -67,6 +67,8 @@ typedef enum {
   NGHTTP2_OPT_MAX_DEFLATE_DYNAMIC_TABLE_SIZE = 1 << 9,
   NGHTTP2_OPT_NO_CLOSED_STREAMS = 1 << 10,
   NGHTTP2_OPT_MAX_OUTBOUND_ACK = 1 << 11,
+  NGHTTP2_OPT_MAX_SETTINGS = 1 << 12,
+  NGHTTP2_OPT_SERVER_FALLBACK_RFC7540_PRIORITIES = 1 << 13,
 } nghttp2_option_flag;
 
 /**
@@ -85,6 +87,10 @@ struct nghttp2_option {
    * NGHTTP2_OPT_MAX_OUTBOUND_ACK
    */
   size_t max_outbound_ack;
+  /**
+   * NGHTTP2_OPT_MAX_SETTINGS
+   */
+  size_t max_settings;
   /**
    * Bitwise OR of nghttp2_option_flag to determine that which fields
    * are specified.
@@ -122,6 +128,10 @@ struct nghttp2_option {
    * NGHTTP2_OPT_NO_CLOSED_STREAMS
    */
   int no_closed_streams;
+  /**
+   * NGHTTP2_OPT_SERVER_FALLBACK_RFC7540_PRIORITIES
+   */
+  int server_fallback_rfc7540_priorities;
   /**
    * NGHTTP2_OPT_USER_RECV_EXT_TYPES
    */

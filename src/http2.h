@@ -289,12 +289,6 @@ StringRef rewrite_location_uri(BlockAllocator &balloc, const StringRef &uri,
                                const StringRef &request_authority,
                                const StringRef &upstream_scheme);
 
-// Checks the header name/value pair using nghttp2_check_header_name()
-// and nghttp2_check_header_value(). If both function returns nonzero,
-// this function returns nonzero.
-int check_nv(const uint8_t *name, size_t namelen, const uint8_t *value,
-             size_t valuelen);
-
 // Returns parsed HTTP status code.  Returns -1 on failure.
 int parse_http_status_code(const StringRef &src);
 
@@ -409,6 +403,12 @@ StringRef to_method_string(int method_token);
 
 StringRef normalize_path(BlockAllocator &balloc, const StringRef &path,
                          const StringRef &query);
+
+// normalize_path_colon is like normalize_path, but it additionally
+// does percent-decoding %3A in order to workaround the issue that ':'
+// cannot be included in backend pattern.
+StringRef normalize_path_colon(BlockAllocator &balloc, const StringRef &path,
+                               const StringRef &query);
 
 std::string normalize_path(const StringRef &path, const StringRef &query);
 

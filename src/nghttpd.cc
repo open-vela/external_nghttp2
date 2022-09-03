@@ -55,7 +55,7 @@ namespace nghttp2 {
 namespace {
 int parse_push_config(Config &config, const char *optarg) {
   const char *eq = strchr(optarg, '=');
-  if (eq == nullptr) {
+  if (eq == NULL) {
     return -1;
   }
   auto &paths = config.push[std::string(optarg, eq)];
@@ -63,7 +63,7 @@ int parse_push_config(Config &config, const char *optarg) {
   auto i = eq + 1;
   for (;;) {
     const char *j = strchr(i, ',');
-    if (j == nullptr) {
+    if (j == NULL) {
       j = optarg_end;
     }
     paths.emplace_back(i, j);
@@ -178,9 +178,6 @@ Options:
       << config.mime_types_file << R"(
   --no-content-length
               Don't send content-length header field.
-  --ktls      Enable ktls.
-  --no-rfc7540-pri
-              Disable RFC7540 priorities.
   --version   Display version information and exit.
   -h, --help  Display this help and exit.
 
@@ -231,8 +228,6 @@ int main(int argc, char **argv) {
         {"mime-types-file", required_argument, &flag, 9},
         {"no-content-length", no_argument, &flag, 10},
         {"encoder-header-table-size", required_argument, &flag, 11},
-        {"ktls", no_argument, &flag, 12},
-        {"no-rfc7540-pri", no_argument, &flag, 13},
         {nullptr, 0, nullptr, 0}};
     int option_index = 0;
     int c = getopt_long(argc, argv, "DVb:c:d:ehm:n:p:va:w:W:", long_options,
@@ -250,15 +245,9 @@ int main(int argc, char **argv) {
     case 'V':
       config.verify_client = true;
       break;
-    case 'b': {
-      auto n = util::parse_uint(optarg);
-      if (n == -1) {
-        std::cerr << "-b: Bad option value: " << optarg << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      config.padding = n;
+    case 'b':
+      config.padding = strtol(optarg, nullptr, 10);
       break;
-    }
     case 'd':
       config.htdocs = optarg;
       break;
@@ -280,12 +269,13 @@ int main(int argc, char **argv) {
       std::cerr << "-n: WARNING: Threading disabled at build time, "
                 << "no threads created." << std::endl;
 #else
-      auto n = util::parse_uint(optarg);
-      if (n == -1) {
+      char *end;
+      errno = 0;
+      config.num_worker = strtoul(optarg, &end, 10);
+      if (errno == ERANGE || *end != '\0' || config.num_worker == 0) {
         std::cerr << "-n: Bad option value: " << optarg << std::endl;
         exit(EXIT_FAILURE);
       }
-      config.num_worker = n;
 #endif // NOTHREADS
       break;
     }
@@ -316,8 +306,10 @@ int main(int argc, char **argv) {
       break;
     case 'w':
     case 'W': {
-      auto n = util::parse_uint(optarg);
-      if (n == -1 || n > 30) {
+      char *endptr;
+      errno = 0;
+      auto n = strtoul(optarg, &endptr, 10);
+      if (errno != 0 || *endptr != '\0' || n >= 31) {
         std::cerr << "-" << static_cast<char>(c)
                   << ": specify the integer in the range [0, 30], inclusive"
                   << std::endl;
@@ -415,14 +407,6 @@ int main(int argc, char **argv) {
         config.encoder_header_table_size = n;
         break;
       }
-      case 12:
-        // tls option
-        config.ktls = true;
-        break;
-      case 13:
-        // no-rfc7540-pri option
-        config.no_rfc7540_pri = true;
-        break;
       }
       break;
     default:
@@ -435,15 +419,7 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-  {
-    auto portStr = argv[optind++];
-    auto n = util::parse_uint(portStr);
-    if (n == -1 || n > std::numeric_limits<uint16_t>::max()) {
-      std::cerr << "<PORT>: Bad value: " << portStr << std::endl;
-      exit(EXIT_FAILURE);
-    }
-    config.port = n;
-  }
+  config.port = strtol(argv[optind++], nullptr, 10);
 
   if (!config.no_tls) {
     config.private_key_file = argv[optind++];

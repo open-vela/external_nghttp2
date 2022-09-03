@@ -30,10 +30,9 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"github.com/bradfitz/gomemcache/memcache"
 	"log"
 	"time"
-
-	"github.com/bradfitz/gomemcache/memcache"
 )
 
 func makeKey(len int) []byte {
@@ -90,7 +89,9 @@ func main() {
 			Expiration: int32((*interval) + 300),
 		})
 
-		<-time.After(time.Duration(*interval) * time.Second)
+		select {
+		case <-time.After(time.Duration(*interval) * time.Second):
+		}
 
 		// rotate keys.  the last key is now encryption key.
 		// generate new key and append it to the last, so that

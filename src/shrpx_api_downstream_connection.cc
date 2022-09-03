@@ -463,7 +463,7 @@ int APIDownstreamConnection::on_read() { return 0; }
 
 int APIDownstreamConnection::on_write() { return 0; }
 
-void APIDownstreamConnection::on_upstream_change(Upstream *upstream) {}
+void APIDownstreamConnection::on_upstream_change(Upstream *uptream) {}
 
 bool APIDownstreamConnection::poolable() const { return false; }
 

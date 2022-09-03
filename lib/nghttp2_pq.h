@@ -55,8 +55,14 @@ typedef struct {
 
 /*
  * Initializes priority queue |pq| with compare function |cmp|.
+ *
+ * This function returns 0 if it succeeds, or one of the following
+ * negative error codes:
+ *
+ * NGHTTP2_ERR_NOMEM
+ *     Out of memory.
  */
-void nghttp2_pq_init(nghttp2_pq *pq, nghttp2_less less, nghttp2_mem *mem);
+int nghttp2_pq_init(nghttp2_pq *pq, nghttp2_less less, nghttp2_mem *mem);
 
 /*
  * Deallocates any resources allocated for |pq|.  The stored items are
@@ -108,7 +114,7 @@ typedef int (*nghttp2_pq_item_cb)(nghttp2_pq_entry *item, void *arg);
 void nghttp2_pq_update(nghttp2_pq *pq, nghttp2_pq_item_cb fun, void *arg);
 
 /*
- * Applies |fun| to each item in |pq|.  The |arg| is passed as arg
+ * Applys |fun| to each item in |pq|.  The |arg| is passed as arg
  * parameter to callback function.  This function must not change the
  * ordering key.  If the return value from callback is nonzero, this
  * function returns 1 immediately without iterating remaining items.

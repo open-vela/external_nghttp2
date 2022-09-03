@@ -40,8 +40,6 @@
 #include "nghttp2_npn_test.h"
 #include "nghttp2_helper_test.h"
 #include "nghttp2_buf_test.h"
-#include "nghttp2_http_test.h"
-#include "nghttp2_extpri_test.h"
 
 extern int nghttp2_enable_strict_preface;
 
@@ -49,7 +47,7 @@ static int init_suite1(void) { return 0; }
 
 static int clean_suite1(void) { return 0; }
 
-int main(void) {
+int main() {
   CU_pSuite pSuite = NULL;
   unsigned int num_tests_failed;
 
@@ -95,8 +93,6 @@ int main(void) {
                    test_nghttp2_session_recv_headers_early_response) ||
       !CU_add_test(pSuite, "session_recv_headers_for_closed_stream",
                    test_nghttp2_session_recv_headers_for_closed_stream) ||
-      !CU_add_test(pSuite, "session_recv_headers_with_extpri",
-                   test_nghttp2_session_recv_headers_with_extpri) ||
       !CU_add_test(pSuite, "session_server_recv_push_response",
                    test_nghttp2_session_server_recv_push_response) ||
       !CU_add_test(pSuite, "session_recv_premature_headers",
@@ -115,8 +111,6 @@ int main(void) {
                    test_nghttp2_session_recv_altsvc) ||
       !CU_add_test(pSuite, "session_recv_origin",
                    test_nghttp2_session_recv_origin) ||
-      !CU_add_test(pSuite, "session_recv_priority_update",
-                   test_nghttp2_session_recv_priority_update) ||
       !CU_add_test(pSuite, "session_continue", test_nghttp2_session_continue) ||
       !CU_add_test(pSuite, "session_add_frame",
                    test_nghttp2_session_add_frame) ||
@@ -217,10 +211,6 @@ int main(void) {
       !CU_add_test(pSuite, "submit_extension", test_nghttp2_submit_extension) ||
       !CU_add_test(pSuite, "submit_altsvc", test_nghttp2_submit_altsvc) ||
       !CU_add_test(pSuite, "submit_origin", test_nghttp2_submit_origin) ||
-      !CU_add_test(pSuite, "submit_priority_update",
-                   test_nghttp2_submit_priority_update) ||
-      !CU_add_test(pSuite, "submit_rst_stream",
-                   test_nghttp2_submit_rst_stream) ||
       !CU_add_test(pSuite, "session_open_stream",
                    test_nghttp2_session_open_stream) ||
       !CU_add_test(pSuite, "session_open_stream_with_idle_stream_dep",
@@ -317,10 +307,6 @@ int main(void) {
       !CU_add_test(pSuite, "session_flooding", test_nghttp2_session_flooding) ||
       !CU_add_test(pSuite, "session_change_stream_priority",
                    test_nghttp2_session_change_stream_priority) ||
-      !CU_add_test(pSuite, "session_change_extpri_stream_priority",
-                   test_nghttp2_session_change_extpri_stream_priority) ||
-      !CU_add_test(pSuite, "session_create_idle_stream",
-                   test_nghttp2_session_create_idle_stream) ||
       !CU_add_test(pSuite, "session_repeated_priority_change",
                    test_nghttp2_session_repeated_priority_change) ||
       !CU_add_test(pSuite, "session_repeated_priority_submission",
@@ -329,8 +315,6 @@ int main(void) {
                    test_nghttp2_session_set_local_window_size) ||
       !CU_add_test(pSuite, "session_cancel_from_before_frame_send",
                    test_nghttp2_session_cancel_from_before_frame_send) ||
-      !CU_add_test(pSuite, "session_too_many_settings",
-                   test_nghttp2_session_too_many_settings) ||
       !CU_add_test(pSuite, "session_removed_closed_stream",
                    test_nghttp2_session_removed_closed_stream) ||
       !CU_add_test(pSuite, "session_pause_data",
@@ -339,10 +323,6 @@ int main(void) {
                    test_nghttp2_session_no_closed_streams) ||
       !CU_add_test(pSuite, "session_set_stream_user_data",
                    test_nghttp2_session_set_stream_user_data) ||
-      !CU_add_test(pSuite, "session_no_rfc7540_priorities",
-                   test_nghttp2_session_no_rfc7540_priorities) ||
-      !CU_add_test(pSuite, "session_server_fallback_rfc7540_priorities",
-                   test_nghttp2_session_server_fallback_rfc7540_priorities) ||
       !CU_add_test(pSuite, "http_mandatory_headers",
                    test_nghttp2_http_mandatory_headers) ||
       !CU_add_test(pSuite, "http_content_length",
@@ -384,8 +364,6 @@ int main(void) {
                    test_nghttp2_frame_pack_altsvc) ||
       !CU_add_test(pSuite, "frame_pack_origin",
                    test_nghttp2_frame_pack_origin) ||
-      !CU_add_test(pSuite, "frame_pack_priority_update",
-                   test_nghttp2_frame_pack_priority_update) ||
       !CU_add_test(pSuite, "nv_array_copy", test_nghttp2_nv_array_copy) ||
       !CU_add_test(pSuite, "iv_check", test_nghttp2_iv_check) ||
       !CU_add_test(pSuite, "hd_deflate", test_nghttp2_hd_deflate) ||
@@ -431,8 +409,6 @@ int main(void) {
                    test_nghttp2_check_header_name) ||
       !CU_add_test(pSuite, "check_header_value",
                    test_nghttp2_check_header_value) ||
-      !CU_add_test(pSuite, "check_header_value_rfc9113",
-                   test_nghttp2_check_header_value_rfc9113) ||
       !CU_add_test(pSuite, "bufs_add", test_nghttp2_bufs_add) ||
       !CU_add_test(pSuite, "bufs_add_stack_buffer_overflow_bug",
                    test_nghttp2_bufs_add_stack_buffer_overflow_bug) ||
@@ -443,13 +419,7 @@ int main(void) {
       !CU_add_test(pSuite, "bufs_advance", test_nghttp2_bufs_advance) ||
       !CU_add_test(pSuite, "bufs_next_present",
                    test_nghttp2_bufs_next_present) ||
-      !CU_add_test(pSuite, "bufs_realloc", test_nghttp2_bufs_realloc) ||
-      !CU_add_test(pSuite, "http_parse_priority",
-                   test_nghttp2_http_parse_priority) ||
-      !CU_add_test(pSuite, "sf_parse_item", test_nghttp2_sf_parse_item) ||
-      !CU_add_test(pSuite, "sf_parse_inner_list",
-                   test_nghttp2_sf_parse_inner_list) ||
-      !CU_add_test(pSuite, "extpri_to_uint8", test_nghttp2_extpri_to_uint8)) {
+      !CU_add_test(pSuite, "bufs_realloc", test_nghttp2_bufs_realloc)) {
     CU_cleanup_registry();
     return (int)CU_get_error();
   }

@@ -5,20 +5,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/net/http2/hpack"
+	"golang.org/x/net/websocket"
 	"io"
 	"net/http"
 	"regexp"
 	"syscall"
 	"testing"
 	"time"
-
-	"golang.org/x/net/http2/hpack"
-	"golang.org/x/net/websocket"
 )
 
 // TestH1H1PlainGET tests whether simple HTTP/1 GET request works.
 func TestH1H1PlainGET(t *testing.T) {
-	st := newServerTester(t, options{})
+	st := newServerTester(nil, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -35,9 +34,9 @@ func TestH1H1PlainGET(t *testing.T) {
 }
 
 // TestH1H1PlainGETClose tests whether simple HTTP/1 GET request with
-// Connection: close request header field works.
+// Connetion: close request header field works.
 func TestH1H1PlainGETClose(t *testing.T) {
-	st := newServerTester(t, options{})
+	st := newServerTester(nil, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -59,12 +58,9 @@ func TestH1H1PlainGETClose(t *testing.T) {
 // TestH1H1InvalidMethod tests that server rejects invalid method with
 // 501 status code
 func TestH1H1InvalidMethod(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("server should not forward this request")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not forward this request")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -83,16 +79,18 @@ func TestH1H1InvalidMethod(t *testing.T) {
 // TestH1H1MultipleRequestCL tests that server rejects request which
 // contains multiple Content-Length header fields.
 func TestH1H1MultipleRequestCL(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("server should not forward bad request")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not forward bad request")
+	})
 	defer st.Close()
 
-	if _, err := io.WriteString(st.conn, fmt.Sprintf("GET / HTTP/1.1\r\nHost: %v\r\nTest-Case: TestH1H1MultipleRequestCL\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n",
-		st.authority)); err != nil {
+	if _, err := io.WriteString(st.conn, fmt.Sprintf(`GET / HTTP/1.1
+Host: %v
+Test-Case: TestH1H1MultipleRequestCL
+Content-Length: 0
+Content-Length: 0
+
+`, st.authority)); err != nil {
 		t.Fatalf("Error io.WriteString() = %v", err)
 	}
 
@@ -110,7 +108,7 @@ func TestH1H1MultipleRequestCL(t *testing.T) {
 // // TestH1H1ConnectFailure tests that server handles the situation that
 // // connection attempt to HTTP/1 backend failed.
 // func TestH1H1ConnectFailure(t *testing.T) {
-// 	st := newServerTester(t, options{})
+// 	st := newServerTester(nil, t, noopHandler)
 // 	defer st.Close()
 
 // 	// shutdown backend server to simulate backend connect failure
@@ -131,10 +129,7 @@ func TestH1H1MultipleRequestCL(t *testing.T) {
 // TestH1H1AffinityCookie tests that affinity cookie is sent back in
 // cleartext http.
 func TestH1H1AffinityCookie(t *testing.T) {
-	opts := options{
-		args: []string{"--affinity-cookie"},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--affinity-cookie"}, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -158,11 +153,7 @@ func TestH1H1AffinityCookie(t *testing.T) {
 // TestH1H1AffinityCookieTLS tests that affinity cookie is sent back
 // in https.
 func TestH1H1AffinityCookieTLS(t *testing.T) {
-	opts := options{
-		args: []string{"--alpn-h1", "--affinity-cookie"},
-		tls:  true,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterTLS([]string{"--alpn-h1", "--affinity-cookie"}, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -185,7 +176,7 @@ func TestH1H1AffinityCookieTLS(t *testing.T) {
 
 // TestH1H1GracefulShutdown tests graceful shutdown.
 func TestH1H1GracefulShutdown(t *testing.T) {
-	st := newServerTester(t, options{})
+	st := newServerTester(nil, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -226,13 +217,9 @@ func TestH1H1GracefulShutdown(t *testing.T) {
 
 // TestH1H1HostRewrite tests that server rewrites Host header field
 func TestH1H1HostRewrite(t *testing.T) {
-	opts := options{
-		args: []string{"--host-rewrite"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("request-host", r.Host)
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--host-rewrite"}, t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("request-host", r.Host)
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -252,12 +239,9 @@ func TestH1H1HostRewrite(t *testing.T) {
 // TestH1H1BadHost tests that server rejects request including bad
 // characters in host header field.
 func TestH1H1BadHost(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("server should not forward this request")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not forward this request")
+	})
 	defer st.Close()
 
 	if _, err := io.WriteString(st.conn, "GET / HTTP/1.1\r\nTest-Case: TestH1H1HBadHost\r\nHost: foo\"bar\r\n\r\n"); err != nil {
@@ -275,12 +259,9 @@ func TestH1H1BadHost(t *testing.T) {
 // TestH1H1BadAuthority tests that server rejects request including
 // bad characters in authority component of requset URI.
 func TestH1H1BadAuthority(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("server should not forward this request")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not forward this request")
+	})
 	defer st.Close()
 
 	if _, err := io.WriteString(st.conn, "GET http://foo\"bar/ HTTP/1.1\r\nTest-Case: TestH1H1HBadAuthority\r\nHost: foobar\r\n\r\n"); err != nil {
@@ -298,12 +279,9 @@ func TestH1H1BadAuthority(t *testing.T) {
 // TestH1H1BadScheme tests that server rejects request including
 // bad characters in scheme component of requset URI.
 func TestH1H1BadScheme(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("server should not forward this request")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not forward this request")
+	})
 	defer st.Close()
 
 	if _, err := io.WriteString(st.conn, "GET http*://example.com/ HTTP/1.1\r\nTest-Case: TestH1H1HBadScheme\r\nHost: example.com\r\n\r\n"); err != nil {
@@ -321,12 +299,9 @@ func TestH1H1BadScheme(t *testing.T) {
 // TestH1H1HTTP10 tests that server can accept HTTP/1.0 request
 // without Host header field
 func TestH1H1HTTP10(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("request-host", r.Host)
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("request-host", r.Host)
+	})
 	defer st.Close()
 
 	if _, err := io.WriteString(st.conn, "GET / HTTP/1.0\r\nTest-Case: TestH1H1HTTP10\r\n\r\n"); err != nil {
@@ -350,12 +325,9 @@ func TestH1H1HTTP10(t *testing.T) {
 // field using actual backend server even if --no-http-rewrite is
 // used.
 func TestH1H1HTTP10NoHostRewrite(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("request-host", r.Host)
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("request-host", r.Host)
+	})
 	defer st.Close()
 
 	if _, err := io.WriteString(st.conn, "GET / HTTP/1.0\r\nTest-Case: TestH1H1HTTP10NoHostRewrite\r\n\r\n"); err != nil {
@@ -378,24 +350,21 @@ func TestH1H1HTTP10NoHostRewrite(t *testing.T) {
 // TestH1H1RequestTrailer tests request trailer part is forwarded to
 // backend.
 func TestH1H1RequestTrailer(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			buf := make([]byte, 4096)
-			for {
-				_, err := r.Body.Read(buf)
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					t.Fatalf("r.Body.Read() = %v", err)
-				}
+	st := newServerTester(nil, t, func(w http.ResponseWriter, r *http.Request) {
+		buf := make([]byte, 4096)
+		for {
+			_, err := r.Body.Read(buf)
+			if err == io.EOF {
+				break
 			}
-			if got, want := r.Trailer.Get("foo"), "bar"; got != want {
-				t.Errorf("r.Trailer.Get(foo): %v; want %v", got, want)
+			if err != nil {
+				t.Fatalf("r.Body.Read() = %v", err)
 			}
-		},
-	}
-	st := newServerTester(t, opts)
+		}
+		if got, want := r.Trailer.Get("foo"), "bar"; got != want {
+			t.Errorf("r.Trailer.Get(foo): %v; want %v", got, want)
+		}
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -419,13 +388,9 @@ func TestH1H1HeaderFieldBufferPath(t *testing.T) {
 	// The value 100 is chosen so that sum of header fields bytes
 	// does not exceed it.  We use > 100 bytes URI to exceed this
 	// limit.
-	opts := options{
-		args: []string{"--request-header-field-buffer=100"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatal("execution path should not be here")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--request-header-field-buffer=100"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("execution path should not be here")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -443,13 +408,9 @@ func TestH1H1HeaderFieldBufferPath(t *testing.T) {
 // TestH1H1HeaderFieldBuffer tests that request with header fields
 // larger than configured buffer size is rejected.
 func TestH1H1HeaderFieldBuffer(t *testing.T) {
-	opts := options{
-		args: []string{"--request-header-field-buffer=10"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatal("execution path should not be here")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--request-header-field-buffer=10"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("execution path should not be here")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -466,13 +427,9 @@ func TestH1H1HeaderFieldBuffer(t *testing.T) {
 // TestH1H1HeaderFields tests that request with header fields more
 // than configured number is rejected.
 func TestH1H1HeaderFields(t *testing.T) {
-	opts := options{
-		args: []string{"--max-request-header-fields=1"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatal("execution path should not be here")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--max-request-header-fields=1"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("execution path should not be here")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -493,12 +450,9 @@ func TestH1H1HeaderFields(t *testing.T) {
 
 // TestH1H1Websocket tests that HTTP Upgrade to WebSocket works.
 func TestH1H1Websocket(t *testing.T) {
-	opts := options{
-		handler: websocket.Handler(func(ws *websocket.Conn) {
-			io.Copy(ws, ws)
-		}).ServeHTTP,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterHandler(nil, t, websocket.Handler(func(ws *websocket.Conn) {
+		io.Copy(ws, ws)
+	}))
 	defer st.Close()
 
 	content := []byte("hello world")
@@ -517,15 +471,11 @@ func TestH1H1Websocket(t *testing.T) {
 // TestH1H1ReqPhaseSetHeader tests mruby request phase hook
 // modifies request header fields.
 func TestH1H1ReqPhaseSetHeader(t *testing.T) {
-	opts := options{
-		args: []string{"--mruby-file=" + testDir + "/req-set-header.rb"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			if got, want := r.Header.Get("User-Agent"), "mruby"; got != want {
-				t.Errorf("User-Agent = %v; want %v", got, want)
-			}
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--mruby-file=" + testDir + "/req-set-header.rb"}, t, func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("User-Agent"), "mruby"; got != want {
+			t.Errorf("User-Agent = %v; want %v", got, want)
+		}
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -543,13 +493,9 @@ func TestH1H1ReqPhaseSetHeader(t *testing.T) {
 // TestH1H1ReqPhaseReturn tests mruby request phase hook returns
 // custom response.
 func TestH1H1ReqPhaseReturn(t *testing.T) {
-	opts := options{
-		args: []string{"--mruby-file=" + testDir + "/req-return.rb"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--mruby-file=" + testDir + "/req-return.rb"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -583,10 +529,7 @@ func TestH1H1ReqPhaseReturn(t *testing.T) {
 // TestH1H1RespPhaseSetHeader tests mruby response phase hook modifies
 // response header fields.
 func TestH1H1RespPhaseSetHeader(t *testing.T) {
-	opts := options{
-		args: []string{"--mruby-file=" + testDir + "/resp-set-header.rb"},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--mruby-file=" + testDir + "/resp-set-header.rb"}, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -608,10 +551,7 @@ func TestH1H1RespPhaseSetHeader(t *testing.T) {
 // TestH1H1RespPhaseReturn tests mruby response phase hook returns
 // custom response.
 func TestH1H1RespPhaseReturn(t *testing.T) {
-	opts := options{
-		args: []string{"--mruby-file=" + testDir + "/resp-return.rb"},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--mruby-file=" + testDir + "/resp-return.rb"}, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -645,10 +585,7 @@ func TestH1H1RespPhaseReturn(t *testing.T) {
 // TestH1H1HTTPSRedirect tests that the request to the backend which
 // requires TLS is redirected to https URI.
 func TestH1H1HTTPSRedirect(t *testing.T) {
-	opts := options{
-		args: []string{"--redirect-if-not-tls"},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--redirect-if-not-tls"}, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -669,13 +606,7 @@ func TestH1H1HTTPSRedirect(t *testing.T) {
 // TestH1H1HTTPSRedirectPort tests that the request to the backend
 // which requires TLS is redirected to https URI with given port.
 func TestH1H1HTTPSRedirectPort(t *testing.T) {
-	opts := options{
-		args: []string{
-			"--redirect-if-not-tls",
-			"--redirect-https-port=8443",
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--redirect-if-not-tls", "--redirect-https-port=8443"}, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -697,7 +628,7 @@ func TestH1H1HTTPSRedirectPort(t *testing.T) {
 // TestH1H1POSTRequests tests that server can handle 2 requests with
 // request body.
 func TestH1H1POSTRequests(t *testing.T) {
-	st := newServerTester(t, options{})
+	st := newServerTester(nil, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -726,10 +657,7 @@ func TestH1H1POSTRequests(t *testing.T) {
 // // TestH1H2ConnectFailure tests that server handles the situation that
 // // connection attempt to HTTP/2 backend failed.
 // func TestH1H2ConnectFailure(t *testing.T) {
-// 	opts := options{
-// 		args: []string{"--http2-bridge"},
-// 	}
-// 	st := newServerTester(t, opts)
+// 	st := newServerTester([]string{"--http2-bridge"}, t, noopHandler)
 // 	defer st.Close()
 
 // 	// simulate backend connect attempt failure
@@ -750,13 +678,9 @@ func TestH1H1POSTRequests(t *testing.T) {
 // TestH1H2NoHost tests that server rejects request without Host
 // header field for HTTP/2 backend.
 func TestH1H2NoHost(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("server should not forward bad request")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("server should not forward bad request")
+	})
 	defer st.Close()
 
 	// without Host header field, we expect 400 response
@@ -778,13 +702,9 @@ func TestH1H2NoHost(t *testing.T) {
 // TestH1H2HTTP10 tests that server can accept HTTP/1.0 request
 // without Host header field
 func TestH1H2HTTP10(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("request-host", r.Host)
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge"}, t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("request-host", r.Host)
+	})
 	defer st.Close()
 
 	if _, err := io.WriteString(st.conn, "GET / HTTP/1.0\r\nTest-Case: TestH1H2HTTP10\r\n\r\n"); err != nil {
@@ -808,13 +728,9 @@ func TestH1H2HTTP10(t *testing.T) {
 // field using actual backend server even if --no-http-rewrite is
 // used.
 func TestH1H2HTTP10NoHostRewrite(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("request-host", r.Host)
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge"}, t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("request-host", r.Host)
+	})
 	defer st.Close()
 
 	if _, err := io.WriteString(st.conn, "GET / HTTP/1.0\r\nTest-Case: TestH1H2HTTP10NoHostRewrite\r\n\r\n"); err != nil {
@@ -839,15 +755,11 @@ func TestH1H2HTTP10NoHostRewrite(t *testing.T) {
 // concatenates crumbled Cookies automatically, so this test is not
 // much effective now.
 func TestH1H2CrumbleCookie(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			if got, want := r.Header.Get("Cookie"), "alpha; bravo; charlie"; got != want {
-				t.Errorf("Cookie: %v; want %v", got, want)
-			}
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge"}, t, func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Cookie"), "alpha; bravo; charlie"; got != want {
+			t.Errorf("Cookie: %v; want %v", got, want)
+		}
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -867,15 +779,11 @@ func TestH1H2CrumbleCookie(t *testing.T) {
 // TestH1H2GenerateVia tests that server generates Via header field to and
 // from backend server.
 func TestH1H2GenerateVia(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			if got, want := r.Header.Get("Via"), "1.1 nghttpx"; got != want {
-				t.Errorf("Via: %v; want %v", got, want)
-			}
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge"}, t, func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Via"), "1.1 nghttpx"; got != want {
+			t.Errorf("Via: %v; want %v", got, want)
+		}
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -892,16 +800,12 @@ func TestH1H2GenerateVia(t *testing.T) {
 // TestH1H2AppendVia tests that server adds value to existing Via
 // header field to and from backend server.
 func TestH1H2AppendVia(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			if got, want := r.Header.Get("Via"), "foo, 1.1 nghttpx"; got != want {
-				t.Errorf("Via: %v; want %v", got, want)
-			}
-			w.Header().Add("Via", "bar")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge"}, t, func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Via"), "foo, 1.1 nghttpx"; got != want {
+			t.Errorf("Via: %v; want %v", got, want)
+		}
+		w.Header().Add("Via", "bar")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -921,16 +825,12 @@ func TestH1H2AppendVia(t *testing.T) {
 // TestH1H2NoVia tests that server does not add value to existing Via
 // header field to and from backend server.
 func TestH1H2NoVia(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge", "--no-via"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			if got, want := r.Header.Get("Via"), "foo"; got != want {
-				t.Errorf("Via: %v; want %v", got, want)
-			}
-			w.Header().Add("Via", "bar")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge", "--no-via"}, t, func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("Via"), "foo"; got != want {
+			t.Errorf("Via: %v; want %v", got, want)
+		}
+		w.Header().Add("Via", "bar")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -950,16 +850,9 @@ func TestH1H2NoVia(t *testing.T) {
 // TestH1H2ReqPhaseReturn tests mruby request phase hook returns
 // custom response.
 func TestH1H2ReqPhaseReturn(t *testing.T) {
-	opts := options{
-		args: []string{
-			"--http2-bridge",
-			"--mruby-file=" + testDir + "/req-return.rb",
-		},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge", "--mruby-file=" + testDir + "/req-return.rb"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -993,13 +886,7 @@ func TestH1H2ReqPhaseReturn(t *testing.T) {
 // TestH1H2RespPhaseReturn tests mruby response phase hook returns
 // custom response.
 func TestH1H2RespPhaseReturn(t *testing.T) {
-	opts := options{
-		args: []string{
-			"--http2-bridge",
-			"--mruby-file=" + testDir + "/resp-return.rb",
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge", "--mruby-file=" + testDir + "/resp-return.rb"}, t, noopHandler)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1033,15 +920,11 @@ func TestH1H2RespPhaseReturn(t *testing.T) {
 // TestH1H2TE tests that "te: trailers" header is forwarded to HTTP/2
 // backend server by stripping other encodings.
 func TestH1H2TE(t *testing.T) {
-	opts := options{
-		args: []string{"--http2-bridge"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			if got, want := r.Header.Get("te"), "trailers"; got != want {
-				t.Errorf("te: %v; want %v", got, want)
-			}
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--http2-bridge"}, t, func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.Header.Get("te"), "trailers"; got != want {
+			t.Errorf("te: %v; want %v", got, want)
+		}
+	})
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1061,14 +944,9 @@ func TestH1H2TE(t *testing.T) {
 // TestH1APIBackendconfig exercise backendconfig API endpoint routine
 // for successful case.
 func TestH1APIBackendconfig(t *testing.T) {
-	opts := options{
-		args: []string{"-f127.0.0.1,3010;api;no-tls"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-		connectPort: 3010,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterConnectPort([]string{"-f127.0.0.1,3010;api;no-tls"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	}, 3010)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1103,14 +981,9 @@ backend=127.0.0.1,3011
 // TestH1APIBackendconfigQuery exercise backendconfig API endpoint
 // routine with query.
 func TestH1APIBackendconfigQuery(t *testing.T) {
-	opts := options{
-		args: []string{"-f127.0.0.1,3010;api;no-tls"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-		connectPort: 3010,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterConnectPort([]string{"-f127.0.0.1,3010;api;no-tls"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	}, 3010)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1145,14 +1018,9 @@ backend=127.0.0.1,3011
 // TestH1APIBackendconfigBadMethod exercise backendconfig API endpoint
 // routine with bad method.
 func TestH1APIBackendconfigBadMethod(t *testing.T) {
-	opts := options{
-		args: []string{"-f127.0.0.1,3010;api;no-tls"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-		connectPort: 3010,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterConnectPort([]string{"-f127.0.0.1,3010;api;no-tls"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	}, 3010)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1186,14 +1054,9 @@ backend=127.0.0.1,3011
 
 // TestH1APIConfigrevision tests configrevision API.
 func TestH1APIConfigrevision(t *testing.T) {
-	opts := options{
-		args: []string{"-f127.0.0.1,3010;api;no-tls"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-		connectPort: 3010,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterConnectPort([]string{"-f127.0.0.1,3010;api;no-tls"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	}, 3010)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1229,14 +1092,9 @@ func TestH1APIConfigrevision(t *testing.T) {
 // TestH1APINotFound exercise backendconfig API endpoint routine when
 // API endpoint is not found.
 func TestH1APINotFound(t *testing.T) {
-	opts := options{
-		args: []string{"-f127.0.0.1,3010;api;no-tls"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-		connectPort: 3010,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterConnectPort([]string{"-f127.0.0.1,3010;api;no-tls"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	}, 3010)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1270,14 +1128,9 @@ backend=127.0.0.1,3011
 
 // TestH1Healthmon tests health monitor endpoint.
 func TestH1Healthmon(t *testing.T) {
-	opts := options{
-		args: []string{"-f127.0.0.1,3011;healthmon;no-tls"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatalf("request should not be forwarded")
-		},
-		connectPort: 3011,
-	}
-	st := newServerTester(t, opts)
+	st := newServerTesterConnectPort([]string{"-f127.0.0.1,3011;healthmon;no-tls"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("request should not be forwarded")
+	}, 3011)
 	defer st.Close()
 
 	res, err := st.http1(requestParam{
@@ -1295,17 +1148,17 @@ func TestH1Healthmon(t *testing.T) {
 // TestH1ResponseBeforeRequestEnd tests the situation where response
 // ends before request body finishes.
 func TestH1ResponseBeforeRequestEnd(t *testing.T) {
-	opts := options{
-		args: []string{"--mruby-file=" + testDir + "/req-return.rb"},
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			t.Fatal("request should not be forwarded")
-		},
-	}
-	st := newServerTester(t, opts)
+	st := newServerTester([]string{"--mruby-file=" + testDir + "/req-return.rb"}, t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("request should not be forwarded")
+	})
 	defer st.Close()
 
-	if _, err := io.WriteString(st.conn, fmt.Sprintf("POST / HTTP/1.1\r\nHost: %v\r\nTest-Case: TestH1ResponseBeforeRequestEnd\r\nContent-Length: 1000000\r\n\r\n",
-		st.authority)); err != nil {
+	if _, err := io.WriteString(st.conn, fmt.Sprintf(`POST / HTTP/1.1
+Host: %v
+Test-Case: TestH1ResponseBeforeRequestEnd
+Content-Length: 1000000
+
+`, st.authority)); err != nil {
 		t.Fatalf("Error io.WriteString() = %v", err)
 	}
 
@@ -1316,36 +1169,5 @@ func TestH1ResponseBeforeRequestEnd(t *testing.T) {
 
 	if got, want := resp.StatusCode, 404; got != want {
 		t.Errorf("status: %v; want %v", got, want)
-	}
-}
-
-// TestH1H1ChunkedEndsPrematurely tests that an HTTP/1.1 request fails
-// if the backend chunked encoded response ends prematurely.
-func TestH1H1ChunkedEndsPrematurely(t *testing.T) {
-	opts := options{
-		handler: func(w http.ResponseWriter, r *http.Request) {
-			hj, ok := w.(http.Hijacker)
-			if !ok {
-				http.Error(w, "Could not hijack the connection", http.StatusInternalServerError)
-				return
-			}
-			conn, bufrw, err := hj.Hijack()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			defer conn.Close()
-			bufrw.WriteString("HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\n")
-			bufrw.Flush()
-		},
-	}
-	st := newServerTester(t, opts)
-	defer st.Close()
-
-	_, err := st.http1(requestParam{
-		name: "TestH1H1ChunkedEndsPrematurely",
-	})
-	if err == nil {
-		t.Fatal("st.http1() should fail")
 	}
 }
